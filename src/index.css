@@ -1,0 +1,225 @@
+@font-face {
+  font-family: 'Balderasu';
+  src: url('/fonts/Balderasu_Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 42 100% 98%;
+    --foreground: 230 100% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 230 100% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 100% 14%;
+    --primary: 230 100% 18%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 44 88% 93%;
+    --secondary-foreground: 230 100% 18%;
+    --muted: 44 70% 94%;
+    --muted-foreground: 226 24% 35%;
+    --accent: 44 100% 45%;
+    --accent-foreground: 230 100% 14%;
+    --destructive: 0 80% 52%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 43 34% 84%;
+    --input: 43 40% 90%;
+    --ring: 44 100% 45%;
+    --radius: 0.875rem;
+    --font-heading: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-display: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, monospace;
+    --font-amharic: 'Balderasu', 'Nyala', 'Ebrima', serif;
+
+  /* Game tokens */
+    --gold: 44 100% 45%;
+    --neon-purple: 230 100% 18%;
+    --electric-blue: 225 86% 25%;
+    --correct-green: 142 65% 42%;
+    --wrong-red: 0 80% 52%;
+    --navy-dark: 230 100% 10%;
+    --navy-mid: 230 76% 15%;
+    --navy-light: 44 70% 94%;
+    --surface: 0 0% 100%;
+    --surface-2: 42 100% 98%;
+  }
+
+  .admin-theme {
+    --background: 230 100% 8%;
+    --foreground: 210 30% 95%;
+    --card: 230 55% 12%;
+    --card-foreground: 210 30% 95%;
+    --popover: 230 55% 12%;
+    --popover-foreground: 210 30% 95%;
+    --primary: 44 100% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 230 45% 18%;
+    --secondary-foreground: 210 30% 90%;
+    --muted: 230 45% 18%;
+    --muted-foreground: 218 20% 68%;
+    --accent: 44 100% 45%;
+    --accent-foreground: 230 100% 14%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 230 36% 24%;
+    --input: 230 45% 18%;
+    --ring: 44 100% 45%;
+    --gold: 44 100% 45%;
+    --neon-purple: 44 100% 45%;
+    --electric-blue: 44 100% 45%;
+    --navy-dark: 230 100% 8%;
+    --navy-mid: 230 72% 14%;
+    --navy-light: 230 45% 18%;
+    --surface: 230 55% 12%;
+    --surface-2: 230 45% 16%;
+  }
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body {
+    @apply bg-background text-foreground font-body;
+    font-style: normal;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    -webkit-overscroll-behavior: none;
+  }
+  /* Only block selection on interactive/game UI, not content */
+  button, nav, .no-select {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  h1, h2, h3 { font-family: var(--font-heading); font-style: normal; }
+}
+
+@layer utilities {
+  .font-game { font-family: var(--font-heading); font-style: normal; }
+  .font-amharic { font-family: var(--font-amharic); font-style: normal; }
+  .text-gold { color: hsl(var(--gold)); }
+  .bg-gold { background-color: hsl(var(--gold)); }
+  .text-correct { color: hsl(var(--correct-green)); }
+  .text-wrong { color: hsl(var(--wrong-red)); }
+  .bg-correct { background-color: hsl(var(--correct-green)); }
+  .bg-wrong { background-color: hsl(var(--wrong-red)); }
+
+  .glow-gold { box-shadow: 0 0 18px hsl(var(--gold) / 0.35), 0 0 36px hsl(var(--gold) / 0.15); }
+  .glow-purple { box-shadow: 0 0 18px hsl(var(--neon-purple) / 0.35), 0 0 36px hsl(var(--neon-purple) / 0.15); }
+  .glow-blue { box-shadow: 0 0 18px hsl(var(--electric-blue) / 0.3); }
+  .glow-green { box-shadow: 0 0 18px hsl(var(--correct-green) / 0.4), 0 0 36px hsl(var(--correct-green) / 0.2); }
+
+  .glass-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+  }
+
+  /* Solid card */
+  .glass-card-solid {
+    background: hsl(var(--surface));
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.04);
+    border: 1px solid hsl(var(--border));
+  }
+
+  .gradient-purple-blue {
+    background: hsl(var(--primary));
+  }
+  .gradient-gold {
+    background: hsl(var(--gold));
+  }
+  .gradient-bg {
+    background: hsl(var(--background));
+  }
+  .gradient-game-header {
+    background: linear-gradient(160deg, hsl(var(--gold) / 0.12) 0%, hsl(var(--primary) / 0.04) 100%);
+  }
+
+  .navy-dark { background-color: hsl(var(--navy-dark)); }
+  .navy-mid { background-color: hsl(var(--navy-mid)); }
+
+  .no-select {
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 16px hsl(var(--gold) / 0.4); }
+  50% { box-shadow: 0 0 30px hsl(var(--gold) / 0.7), 0 0 50px hsl(var(--gold) / 0.25); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-7px); }
+}
+@keyframes count-up {
+  from { transform: scale(1.25); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes slide-in-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+@keyframes bounce-in {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.08); }
+  70% { transform: scale(0.96); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+@keyframes correct-flash {
+  0% { background-color: hsl(142 65% 42% / 0); transform: scale(1); }
+  30% { background-color: hsl(142 65% 42% / 0.25); transform: scale(1.03); }
+  100% { background-color: hsl(142 65% 42% / 0.12); transform: scale(1); }
+}
+@keyframes wrong-flash {
+  0% { background-color: hsl(0 80% 52% / 0); transform: scale(1); }
+  30% { background-color: hsl(0 80% 52% / 0.2); transform: scale(0.98); }
+  100% { background-color: hsl(0 80% 52% / 0.08); transform: scale(1); }
+}
+@keyframes score-pop {
+  0% { transform: scale(1) translateY(0); opacity: 1; }
+  50% { transform: scale(1.6) translateY(-10px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes splash-in {
+  0% { transform: scale(0.7) translateY(30px); opacity: 0; }
+  60% { transform: scale(1.05) translateY(-5px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}
+
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-count-up { animation: count-up 0.3s ease-out; }
+.animate-slide-up { animation: slide-in-up 0.35s ease-out; }
+.animate-shake { animation: shake 0.45s ease-in-out; }
+.animate-bounce-in { animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.animate-live-pulse { animation: live-pulse 1.4s ease-in-out infinite; }
+.animate-correct { animation: correct-flash 0.6s ease-out forwards; }
+.animate-wrong { animation: wrong-flash 0.5s ease-out forwards; }
+.animate-score-pop { animation: score-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.animate-splash { animation: splash-in 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+.animate-fade-out { animation: fade-out 0.5s ease-out forwards; }

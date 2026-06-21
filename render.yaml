@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: dink-game
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DINK_DATA_FILE
+        value: /opt/render/project/src/data/dink-data.json
+    disk:
+      name: dink-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
