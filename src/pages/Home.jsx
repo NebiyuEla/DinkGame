@@ -8,6 +8,7 @@ import { GameCardSkeleton } from '@/components/LoadingSkeleton';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
 import PullToRefresh from '@/components/PullToRefresh';
+import BrandMascot from '@/components/BrandMascot';
 
 const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
 
@@ -135,7 +136,7 @@ export default function Home() {
                       {prizePool > 0 ? ` - ${fmt(prizePool)} prize pool` : ''}
                     </p>
                   </div>
-                  <img src="/brand/dink-mascot.png" alt="" className="w-20 h-20 object-contain flex-shrink-0" />
+                  <BrandMascot className="w-20 h-20 object-contain flex-shrink-0" small />
                 </div>
 
                 {displayGame?.scheduled_at && gameStatus !== 'lobby' && gameStatus !== 'live' && (

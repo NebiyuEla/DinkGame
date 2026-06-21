@@ -265,7 +265,7 @@ export default function AdminLiveController() {
                 <div>
                   <h2 className="font-black text-white truncate">{selectedGame.title}</h2>
                   <p className="text-xs text-muted-foreground">
-                    {selectedGame.is_paid ? `${fmt(selectedGame.entry_fee)} entry` : 'Free game'} · Prize {fmt(Number(selectedGame.prize_amount || 0) || money.autoPrize)}
+                    {selectedGame.is_paid ? `${fmt(selectedGame.entry_fee)} entry` : 'No entry fee'} · Prize {fmt(Number(selectedGame.prize_amount || 0) || money.autoPrize)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

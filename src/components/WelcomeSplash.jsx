@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link2, ShieldCheck, Wallet } from 'lucide-react';
 import DinkLogo from '@/components/DinkLogo';
+import BrandMascot from '@/components/BrandMascot';
 import { getTelegramProfile } from '@/lib/telegram';
 import { appClient } from '@/api/appClient';
 
@@ -19,38 +19,17 @@ export default function WelcomeSplash({ user, onDone }) {
   }, [profile?.telegram_id, user?.id]);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background flex items-center justify-center px-6">
-      <div className="w-full max-w-sm text-center animate-slide-up">
-        <DinkLogo size="lg" className="mx-auto mb-5" />
-        <img
-          src="/brand/dink-mascot.png"
-          alt=""
-          className="w-36 h-36 object-contain mx-auto mb-4 rounded-full"
-        />
-        <h1 className="text-2xl font-black text-foreground mb-2">Welcome to Dink Game</h1>
-        <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-          Your Telegram profile is linked to this wallet and every game you play.
-        </p>
-        <div className="space-y-2 mb-6 text-left">
-          {[
-            { icon: Link2, text: profile ? `Linked as @${profile.telegram_username || profile.username}` : 'Telegram account required' },
-            { icon: Wallet, text: 'Wallet receives prize shares automatically' },
-            { icon: ShieldCheck, text: 'Fair-play checks protect paid games' },
-          ].map(({ icon: Icon, text }) => (
-            <div key={text} className="flex items-center gap-3 rounded-2xl bg-card border border-border px-4 py-3">
-              <div className="w-9 h-9 rounded-full bg-gold/10 flex items-center justify-center">
-                <Icon size={17} className="text-gold" />
-              </div>
-              <p className="text-sm font-semibold text-foreground">{text}</p>
-            </div>
-          ))}
-        </div>
+    <div className="fixed inset-0 z-[100] dink-orange-field flex items-center justify-center px-6 overflow-hidden">
+      <div className="w-full max-w-sm text-center animate-splash">
+        <DinkLogo size="lg" className="mx-auto rounded-full shadow-xl" />
+        <BrandMascot className="w-64 h-64 object-contain mx-auto mt-5 animate-float" />
+        <h1 className="text-5xl font-black text-white drop-shadow-sm mt-3">Dink Game</h1>
         <button
           onClick={onDone}
           disabled={saving}
-          className="w-full rounded-full bg-primary text-white font-black py-4 active:scale-95 transition-transform disabled:opacity-60"
+          className="mt-8 w-full rounded-full bg-white text-primary font-black py-4 active:scale-95 transition-transform disabled:opacity-60 shadow-[0_14px_30px_rgba(0,20,81,0.24)]"
         >
-          {saving ? 'Linking...' : 'Start Playing'}
+          {saving ? 'Loading...' : 'Start'}
         </button>
       </div>
     </div>

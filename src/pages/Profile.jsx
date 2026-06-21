@@ -1,42 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ChevronRight, Landmark, LogOut, ShieldCheck, Trash2, Trophy, Wallet } from 'lucide-react';
+import { ChevronRight, Landmark, ShieldCheck, Trophy, Wallet } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
 
-function DeleteAccountDialog({ onClose, onConfirm, loading }) {
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/60 z-40" onClick={onClose} />
-      <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 bg-card rounded-3xl p-6 border border-border shadow-xl">
-        <div className="w-12 h-12 rounded-2xl bg-wrong-red/10 border border-wrong-red/20 flex items-center justify-center mx-auto mb-4">
-          <AlertTriangle size={22} className="text-wrong-red" />
-        </div>
-        <h3 className="font-game text-lg font-black text-foreground text-center mb-2">Delete Account?</h3>
-        <p className="text-sm text-muted-foreground text-center mb-4 leading-relaxed">
-          This will flag your account as removed and stop game access. Game records already used for payouts stay in the audit log.
-        </p>
-        <div className="space-y-2">
-          <button onClick={onConfirm} disabled={loading}
-            className="w-full bg-wrong-red text-white font-game font-bold py-3.5 rounded-2xl text-sm disabled:opacity-60 active:scale-95 transition-transform">
-            {loading ? 'Deleting...' : 'Delete My Account'}
-          </button>
-          <button onClick={onClose}
-            className="w-full bg-muted text-foreground font-semibold py-3.5 rounded-2xl text-sm active:scale-95 transition-transform">
-            Cancel
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
 export default function Profile() {
   const { currentUser, setCurrentUser } = useGame();
   const [transactions, setTransactions] = useState([]);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -44,17 +15,6 @@ export default function Profile() {
       .then(setTransactions)
       .catch(() => setTransactions([]));
   }, [currentUser?.id]);
-
-  const handleDeleteAccount = async () => {
-    setDeleting(true);
-    try {
-      await appClient.entities.User.update(currentUser.id, { is_banned: true, ban_reason: 'User requested account deletion' });
-      await appClient.auth.logout('/');
-    } catch {
-      setDeleting(false);
-      setShowDeleteDialog(false);
-    }
-  };
 
   const refreshUser = async () => {
     const user = await appClient.auth.me();
@@ -162,28 +122,9 @@ export default function Profile() {
           </Link>
         </div>
 
-        <button onClick={() => appClient.auth.logout('/')}
-          className="w-full bg-card rounded-2xl p-4 border border-border flex items-center justify-center gap-2 active:scale-95 transition-transform">
-          <LogOut size={15} className="text-wrong-red" />
-          <span className="font-semibold text-wrong-red text-sm">Sign Out</span>
-        </button>
-
-        <button onClick={() => setShowDeleteDialog(true)}
-          className="w-full bg-card rounded-2xl p-4 border border-wrong-red/20 flex items-center justify-center gap-2 active:scale-95 transition-transform">
-          <Trash2 size={15} className="text-wrong-red/60" />
-          <span className="font-semibold text-wrong-red/60 text-sm">Delete Account</span>
-        </button>
       </main>
 
       <BottomNav />
-
-      {showDeleteDialog && (
-        <DeleteAccountDialog
-          onClose={() => setShowDeleteDialog(false)}
-          onConfirm={handleDeleteAccount}
-          loading={deleting}
-        />
-      )}
     </div>
   );
 }

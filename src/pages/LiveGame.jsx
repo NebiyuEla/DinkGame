@@ -4,6 +4,7 @@ import { CheckCircle, Eye, ShieldCheck, Users } from 'lucide-react';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
 import { CorrectBurst } from '@/components/VictoryEffect';
+import BrandMascot from '@/components/BrandMascot';
 
 const ETHIOPIC_RE = /[\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF\uAB00-\uAB2F]/;
 const amharicClass = (text) => (ETHIOPIC_RE.test(text || '') ? 'font-amharic' : '');
@@ -271,9 +272,7 @@ export default function LiveGame() {
     return (
       <div className="min-h-screen dink-orange-field flex items-center justify-center px-6 text-white text-center">
         <div>
-          <img src="/brand/dink-mascot.png" alt="" className="w-44 h-44 object-contain mx-auto mb-4" />
-          <h1 className="text-2xl font-black">Waiting for game</h1>
-          <p className="text-white/75 text-sm mt-2">The host is preparing the first question.</p>
+          <BrandMascot className="w-48 h-48 object-contain mx-auto animate-float" small />
         </div>
       </div>
     );

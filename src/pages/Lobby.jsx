@@ -1,15 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MessageCircle, Send, ShieldCheck, Users } from 'lucide-react';
+import { MessageCircle, Send, Users } from 'lucide-react';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
+import BrandMascot from '@/components/BrandMascot';
 
 const WAITING_LINES = [
-  'ጨዋታው ሊጀምር ነው',
-  'ኔትዎርኮ አሪፍ መሆኑን ያረጋግጡ',
-  'ጨዋታው ከተጀመረ በኋላ መውጣት አይቻልም',
-  'መልሱን በፍጥነት ይምረጡ',
-  'በጨዋታው ውስጥ ፍትሃዊ ይሁኑ',
+  '\u1328\u12cb\u1273\u12cd \u120a\u1300\u121d\u122d \u1290\u12cd',
+  '\u1294\u1275\u12ce\u122d\u12ae \u12a0\u122a\u134d \u1218\u1206\u1291\u1295 \u12eb\u1228\u130b\u130d\u1321',
+  '\u1328\u12cb\u1273\u12cd \u12a8\u1270\u1300\u1218\u1228 \u1260\u128b\u120b \u1218\u12cd\u1323\u1275 \u12a0\u12ed\u127b\u120d\u121d',
 ];
 
 const isActivePlayer = (player) => (
@@ -100,8 +99,8 @@ export default function Lobby() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
+  const sendMessage = async (event) => {
+    event.preventDefault();
     const text = chatText.trim();
     if (!text || !currentGame?.id || !currentUser?.id) return;
     setChatText('');
@@ -116,30 +115,18 @@ export default function Lobby() {
 
   return (
     <div className="min-h-screen dink-orange-field text-white overflow-hidden flex flex-col">
-      <div className="px-4 pt-4 pb-2 flex items-center justify-between relative z-10">
-        <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-white/18 backdrop-blur flex items-center justify-center">
-          <ArrowLeft size={18} />
-        </button>
-        <div className="flex items-center gap-2 rounded-full bg-white/16 px-3 py-2 backdrop-blur">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-end relative z-10">
+        <div className="flex items-center gap-2 rounded-full bg-white/18 px-3 py-2 backdrop-blur">
           <Users size={16} />
           <span className="font-black">{playerCount.toLocaleString()}</span>
         </div>
       </div>
 
-      <section className="relative z-10 px-5 pt-4 text-center flex-shrink-0">
+      <section className="relative z-10 px-5 pt-2 text-center flex-shrink-0">
         <p className="font-amharic text-2xl font-bold leading-relaxed drop-shadow-sm min-h-[4.5rem] flex items-center justify-center">
           {activeNotice}
         </p>
-        <img
-          src="/brand/dink-mascot.png"
-          alt=""
-          className="w-52 h-52 object-contain mx-auto animate-float"
-        />
-        <h1 className="font-black text-xl text-white">{currentGame?.title || 'Dink Game'}</h1>
-        <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-white/18 px-3 py-2 backdrop-blur">
-          <ShieldCheck size={14} />
-          <span className="text-xs font-bold">{currentGame?.is_paid ? `Entry paid · ${currentGame.entry_fee} ETB` : 'Free game'}</span>
-        </div>
+        <BrandMascot className="w-64 h-64 object-contain mx-auto animate-float" />
       </section>
 
       <section className="relative z-10 mt-auto px-4 pb-4">
@@ -160,7 +147,7 @@ export default function Lobby() {
           <form onSubmit={sendMessage} className="mt-3 flex gap-2">
             <input
               value={chatText}
-              onChange={e => setChatText(e.target.value)}
+              onChange={event => setChatText(event.target.value)}
               maxLength={120}
               className="min-w-0 flex-1 rounded-full bg-white/92 text-primary px-4 py-3 text-sm font-semibold outline-none"
               placeholder="Type message"

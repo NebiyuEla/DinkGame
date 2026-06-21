@@ -6,13 +6,19 @@ const SIZES = {
   lg: 'w-24 h-24',
 };
 
-export default function DinkLogo({ size = 'md' }) {
+export default function DinkLogo({ size = 'md', className = '' }) {
   return (
-    <img
-      src="/brand/dink-game-logo.png"
-      alt="Dink Game"
-      className={`${SIZES[size] || SIZES.md} rounded-2xl object-cover shadow-sm`}
-      draggable="false"
-    />
+    <picture>
+      <source srcSet="/brand/dink-game-logo-small.webp" type="image/webp" />
+      <img
+        src="/brand/dink-game-logo.png"
+        alt="Dink Game"
+        className={`block ${SIZES[size] || SIZES.md} rounded-2xl object-cover shadow-sm ${className}`}
+        draggable="false"
+        loading="eager"
+        decoding="async"
+        fetchPriority="high"
+      />
+    </picture>
   );
 }
