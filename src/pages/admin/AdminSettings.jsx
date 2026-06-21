@@ -16,26 +16,30 @@ const SETTING_DEFS = [
   { key: 'require_admin_reveal', label: 'Require Reveal Before Next Question', value: 'true', category: 'gameplay', type: 'toggle' },
   { key: 'eliminate_on_wrong', label: 'Eliminate On Wrong Or No Answer', value: 'true', category: 'gameplay', type: 'toggle' },
   { key: 'allow_watch_after_elimination', label: 'Allow Eliminated Users To Watch', value: 'true', category: 'gameplay', type: 'toggle' },
-  { key: 'show_live_leaderboard', label: 'Show Live Standings To Players', value: 'true', category: 'gameplay', type: 'toggle' },
+  { key: 'min_answer_options', label: 'Minimum Answer Options', value: '3', category: 'gameplay', type: 'number', min: 3, max: 4 },
+  { key: 'max_answer_options', label: 'Maximum Answer Options', value: '4', category: 'gameplay', type: 'number', min: 3, max: 4 },
 
   { key: 'base_points', label: 'Base Points', value: '100', category: 'scoring', type: 'number', min: 0, max: 10000 },
   { key: 'speed_bonus_max', label: 'Max Speed Bonus', value: '50', category: 'scoring', type: 'number', min: 0, max: 10000 },
-  { key: 'jackpot_top_count', label: 'Jackpot Split Winners', value: '3', category: 'scoring', type: 'number', min: 1, max: 20 },
-  { key: 'tie_breaker', label: 'Tie Breaker', value: 'fastest_total_time', category: 'scoring', type: 'select', options: ['fastest_total_time', 'earliest_joined', 'split_prize'] },
+  { key: 'winner_split_mode', label: 'Winner Payout Mode', value: 'equal_split', category: 'scoring', type: 'select', options: ['equal_split'] },
+  { key: 'tie_breaker', label: 'Rank Tie Breaker', value: 'fastest_total_time', category: 'scoring', type: 'select', options: ['fastest_total_time', 'earliest_joined'] },
 
-  { key: 'anti_cheat_threshold', label: 'Flag Threshold', value: '3', category: 'anti-cheat', type: 'number', min: 1, max: 20, suffix: 'events' },
+  { key: 'anti_cheat_threshold', label: 'Warning Before Game Ban', value: '1', category: 'anti-cheat', type: 'number', min: 1, max: 2, suffix: 'warning' },
   { key: 'min_speed_ms', label: 'Minimum Answer Speed', value: '300', category: 'anti-cheat', type: 'number', min: 100, max: 5000, suffix: 'ms' },
   { key: 'max_tab_switches', label: 'Max Tab Switches', value: '2', category: 'anti-cheat', type: 'number', min: 0, max: 20 },
   { key: 'auto_flag_suspicious', label: 'Auto Flag Suspicious Users', value: 'true', category: 'anti-cheat', type: 'toggle' },
+  { key: 'auto_ban_after_second_leave', label: 'Ban On Second Leave', value: 'true', category: 'anti-cheat', type: 'toggle' },
   { key: 'block_duplicate_sessions', label: 'Block Duplicate Sessions', value: 'true', category: 'anti-cheat', type: 'toggle' },
 
-  { key: 'prize_claim_deadline_hours', label: 'Prize Claim Deadline', value: '48', category: 'prizes', type: 'number', min: 1, max: 720, suffix: 'hours' },
-  { key: 'manual_claim_review', label: 'Manual Claim Review', value: 'true', category: 'prizes', type: 'toggle' },
-  { key: 'auto_create_claim_for_winner', label: 'Auto Create Winner Claim', value: 'false', category: 'prizes', type: 'toggle' },
+  { key: 'platform_fee_percent', label: 'Default Platform Fee', value: '25', category: 'wallet', type: 'number', min: 0, max: 90, suffix: '%' },
+  { key: 'auto_prize_from_deposits', label: 'Auto Prize From Deposits', value: 'true', category: 'wallet', type: 'toggle' },
+  { key: 'minimum_withdrawal_etb', label: 'Minimum Telebirr Withdrawal', value: '100', category: 'wallet', type: 'number', min: 100, max: 100000, suffix: 'ETB' },
+  { key: 'telebirr_withdrawal_enabled', label: 'Telebirr Withdrawal Enabled', value: 'true', category: 'wallet', type: 'toggle' },
 
   { key: 'entry_payments_enabled', label: 'Entry Payments Enabled', value: 'false', category: 'payments', type: 'toggle' },
   { key: 'payment_provider', label: 'Payment Provider', value: 'chapa', category: 'payments', type: 'select', options: ['chapa', 'manual'] },
-  { key: 'manual_payment_phone', label: 'Manual Payment Phone', value: '', category: 'payments', type: 'text' },
+  { key: 'chapa_public_key_hint', label: 'Chapa Public Key Hint', value: '', category: 'payments', type: 'text' },
+  { key: 'chapa_webhook_required', label: 'Require Chapa Webhook Signature', value: 'true', category: 'payments', type: 'toggle' },
 
   { key: 'bottom_nav_style', label: 'Bottom Nav Style', value: 'floating', category: 'appearance', type: 'select', options: ['floating', 'solid'] },
 ];
@@ -45,7 +49,7 @@ const CATEGORY_LABELS = {
   gameplay: 'Gameplay',
   scoring: 'Scoring',
   'anti-cheat': 'Anti-Cheat',
-  prizes: 'Prizes',
+  wallet: 'Wallet & Payouts',
   payments: 'Payments',
   appearance: 'Appearance',
 };

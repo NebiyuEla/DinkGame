@@ -32,7 +32,7 @@ export function AdminProvider({ children }) {
     const rolePermissions = {
       game_manager: ['games', 'live_controller', 'users', 'leaderboard'],
       question_manager: ['questions'],
-      prize_manager: ['prizes', 'claims', 'jackpot'],
+      wallet_manager: ['wallet', 'payments', 'withdrawals'],
       viewer: ['dashboard']
     };
     return (rolePermissions[adminUser.role] || []).includes(permission);

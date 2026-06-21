@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { appClient } from '@/api/appClient';
+import { getTelegramProfile } from '@/lib/telegram';
 
 const GameContext = createContext(null);
 
@@ -27,13 +28,30 @@ export function GameProvider({ children }) {
 
   const timerRef = useRef(null);
   const questionStartTimeRef = useRef(null);
+  const lastFocusEventRef = useRef(0);
+
   useEffect(() => {
     let mounted = true;
-    appClient.auth.me()
-      .then((user) => {
-        if (mounted) setCurrentUser(user);
-      })
-      .catch((error) => console.error(error));
+    const loadUser = async () => {
+      const telegramProfile = getTelegramProfile();
+      const user = telegramProfile
+        ? await appClient.auth.loginViaEmailPassword(telegramProfile.email)
+        : await appClient.auth.me();
+
+      if (telegramProfile) {
+        const linkedUser = await appClient.entities.User.update(user.id, {
+          ...telegramProfile,
+          telegram_linked: true,
+          last_seen: new Date().toISOString(),
+        });
+        if (mounted) setCurrentUser(linkedUser);
+        return;
+      }
+
+      if (mounted) setCurrentUser(user);
+    };
+
+    loadUser().catch((error) => console.error(error));
 
     const unsubscribe = appClient.events?.subscribe?.(() => {
       appClient.auth.me()
@@ -48,6 +66,76 @@ export function GameProvider({ children }) {
       if (unsubscribe) unsubscribe();
     };
   }, []);
+
+  const recordSuspicious = useCallback(async ({ eventType, reason, forceBan = false }) => {
+    if (!currentUser?.id || !currentGame?.id) return;
+    try {
+      const rows = await appClient.entities.GamePlayer.filter({
+        game_id: currentGame.id,
+        user_id: currentUser.id,
+      }, '-created_date', 1);
+      const player = rows[0];
+      const nextWarningCount = Number(player?.warning_count || 0) + 1;
+      const shouldBan = forceBan || nextWarningCount >= 2;
+      const severity = shouldBan ? 'high' : 'medium';
+
+      await appClient.entities.AntiCheatLog.create({
+        user_id: currentUser.id,
+        username: currentUser.full_name || currentUser.username || 'Player',
+        game_id: currentGame.id,
+        event_type: eventType,
+        details: `${reason}. Warning ${Math.min(nextWarningCount, 2)} of 2.`,
+        severity,
+        action_taken: shouldBan ? 'game_ban' : 'warning',
+      });
+
+      if (player) {
+        await appClient.entities.GamePlayer.update(player.id, {
+          warning_count: nextWarningCount,
+          ...(shouldBan ? {
+            is_disqualified: true,
+            game_banned: true,
+            disqualify_reason: reason,
+            status: 'finished',
+          } : {}),
+        });
+      }
+
+      await appClient.entities.Broadcast.create({
+        game_id: currentGame.id,
+        target: shouldBan ? 'user' : 'live',
+        target_user_id: currentUser.id,
+        message: shouldBan
+          ? `Fair-play ban: ${reason}`
+          : `Fair-play warning: ${reason}`,
+        sent_by: 'system',
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+      }).catch(() => {});
+
+      if (shouldBan) {
+        const existingBan = await appClient.entities.GameBan.filter({
+          game_id: currentGame.id,
+          user_id: currentUser.id,
+          is_active: true,
+        }, '-created_date', 1);
+        if (existingBan.length === 0) {
+          await appClient.entities.GameBan.create({
+            game_id: currentGame.id,
+            user_id: currentUser.id,
+            username: currentUser.full_name || currentUser.username || 'Player',
+            reason,
+            is_active: true,
+          });
+        }
+      }
+
+      setTabSwitchCount(nextWarningCount);
+      setIsSuspicious(true);
+    } catch (error) {
+      console.error(error);
+    }
+  }, [currentGame, currentUser]);
 
   const loadNextGame = useCallback(async () => {
     try {
@@ -70,41 +158,47 @@ export function GameProvider({ children }) {
     } catch (e) { console.error(e); }
   }, []);
 
-  // Anti-cheat: track tab/visibility switches
+  // Anti-cheat: one warning, then game-specific ban for focus or visibility abuse.
   useEffect(() => {
+    const shouldTrack = () => gameStatus === 'live' && currentQuestion && currentUser && currentGame;
+
     const handleVisibilityChange = () => {
       if (document.hidden && gameStatus === 'live' && currentQuestion) {
-        setTabSwitchCount(prev => {
-          const newCount = prev + 1;
-          if (newCount >= 3) setIsSuspicious(true);
-          if (currentUser && currentGame) {
-            appClient.entities.AntiCheatLog.create({
-              user_id: currentUser.id,
-              game_id: currentGame.id,
-              event_type: 'tab_switch',
-              details: `Tab switch #${newCount} during question ${questionIndex + 1}`,
-              severity: newCount >= 3 ? 'high' : 'medium'
-            }).catch(() => {});
-          }
-          return newCount;
+        recordSuspicious({
+          eventType: 'mini_app_hidden',
+          reason: `Player hid or left the mini app during question ${questionIndex + 1}`,
         });
       }
     };
+
+    const handleBlur = () => {
+      if (!shouldTrack()) return;
+      const now = Date.now();
+      if (now - lastFocusEventRef.current < 2500) return;
+      lastFocusEventRef.current = now;
+      recordSuspicious({
+        eventType: 'app_blur',
+        reason: `Player left Telegram focus during question ${questionIndex + 1}`,
+      });
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [gameStatus, currentQuestion, currentUser, currentGame, questionIndex]);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [currentGame, currentQuestion, currentUser, gameStatus, questionIndex, recordSuspicious]);
 
   const submitAnswer = useCallback(async (optionLabel) => {
     if (isAnswerLocked || !currentQuestion || !currentUser || !currentGame) return null;
     const responseTimeMs = Date.now() - (questionStartTimeRef.current || Date.now());
     if (responseTimeMs < 300) {
-      appClient.entities.AntiCheatLog.create({
-        user_id: currentUser.id,
-        game_id: currentGame.id,
-        event_type: 'impossible_speed',
-        details: `Answer submitted in ${responseTimeMs}ms`,
-        severity: 'high'
-      }).catch(() => {});
+      recordSuspicious({
+        eventType: 'impossible_speed',
+        reason: `Answer submitted in ${responseTimeMs}ms`,
+        forceBan: true,
+      });
       return null;
     }
     setMyAnswer(optionLabel);
@@ -134,7 +228,7 @@ export function GameProvider({ children }) {
       console.error(e);
       return null;
     }
-  }, [isAnswerLocked, currentQuestion, currentUser, currentGame]);
+  }, [isAnswerLocked, currentQuestion, currentUser, currentGame, recordSuspicious]);
 
   const value = {
     currentUser, setCurrentUser,
@@ -158,6 +252,7 @@ export function GameProvider({ children }) {
     questionStartTimeRef, timerRef,
     loadNextGame, loadActiveGame,
     submitAnswer,
+    recordSuspicious,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

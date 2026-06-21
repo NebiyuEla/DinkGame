@@ -8,7 +8,8 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import { GameProvider } from '@/lib/gameContext';
 import { AdminProvider, useAdmin } from '@/lib/adminContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useGame } from '@/lib/gameContext';
 
 // User pages
 import Home from './pages/Home';
@@ -16,9 +17,7 @@ import Lobby from './pages/Lobby';
 import LiveGame from './pages/LiveGame';
 import Leaderboard from './pages/Leaderboard';
 import Winners from './pages/Winners';
-import Jackpot from './pages/Jackpot';
 import Profile from './pages/Profile';
-import PrizeClaim from './pages/PrizeClaim';
 import Deposit from './pages/Deposit';
 import Rules from './pages/Rules';
 import Login from './pages/Login';
@@ -33,13 +32,13 @@ import AdminGames from './pages/admin/AdminGames';
 import AdminQuestions from './pages/admin/AdminQuestions';
 import AdminLiveController from './pages/admin/AdminLiveController';
 import AdminUsers from './pages/admin/AdminUsers';
-import AdminClaims from './pages/admin/AdminClaims';
 import AdminAntiCheat from './pages/admin/AdminAntiCheat';
 import AdminBroadcasts from './pages/admin/AdminBroadcasts';
-import AdminJackpot from './pages/admin/AdminJackpot';
+import AdminWithdrawals from './pages/admin/AdminWithdrawals';
 import AdminSettings from './pages/admin/AdminSettings';
-import SuperAdmin from './pages/admin/SuperAdmin';
 import SplashScreen from './components/SplashScreen';
+import TelegramGate from './components/TelegramGate';
+import WelcomeSplash from './components/WelcomeSplash';
 
 function AdminGuard({ children }) {
   const { adminUser, isLoadingAdmin } = useAdmin();
@@ -50,6 +49,32 @@ function AdminGuard({ children }) {
   );
   if (!adminUser) return <Navigate to="/admin/login" replace />;
   return children;
+}
+
+function PlayerRoute({ children }) {
+  const { currentUser } = useGame();
+  const key = currentUser?.id ? `dink_welcome_seen_${currentUser.id}` : 'dink_welcome_seen_guest';
+  const [showWelcome, setShowWelcome] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !window.localStorage.getItem(key);
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !currentUser?.id) return;
+    setShowWelcome(!window.localStorage.getItem(`dink_welcome_seen_${currentUser.id}`));
+  }, [currentUser?.id]);
+
+  const finishWelcome = () => {
+    window.localStorage.setItem(key, '1');
+    setShowWelcome(false);
+  };
+
+  return (
+    <TelegramGate>
+      {showWelcome && currentUser && <WelcomeSplash user={currentUser} onDone={finishWelcome} />}
+      {children}
+    </TelegramGate>
+  );
 }
 
 const AuthenticatedApp = () => {
@@ -78,9 +103,6 @@ const AuthenticatedApp = () => {
     <>
       {showSplash && <SplashScreen onDone={handleSplashDone} />}
       <Routes>
-        {/* Super Admin */}
-        <Route path="/superadmin" element={<SuperAdmin />} />
-
         {/* Legacy Admin routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/dashboard" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
@@ -89,8 +111,7 @@ const AuthenticatedApp = () => {
         <Route path="/admin/live" element={<AdminGuard><AdminLiveController /></AdminGuard>} />
         <Route path="/admin/users" element={<AdminGuard><AdminUsers /></AdminGuard>} />
         <Route path="/admin/winners" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
-        <Route path="/admin/claims" element={<AdminGuard><AdminClaims /></AdminGuard>} />
-        <Route path="/admin/jackpot" element={<AdminGuard><AdminJackpot /></AdminGuard>} />
+        <Route path="/admin/withdrawals" element={<AdminGuard><AdminWithdrawals /></AdminGuard>} />
         <Route path="/admin/broadcasts" element={<AdminGuard><AdminBroadcasts /></AdminGuard>} />
         <Route path="/admin/anticheat" element={<AdminGuard><AdminAntiCheat /></AdminGuard>} />
         <Route path="/admin/settings" element={<AdminGuard><AdminSettings /></AdminGuard>} />
@@ -103,16 +124,14 @@ const AuthenticatedApp = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* User routes */}
-        <Route path="/" element={<Home />} />
-        <Route path="/lobby" element={<Lobby />} />
-        <Route path="/game" element={<LiveGame />} />
-        <Route path="/leaderboard" element={<Leaderboard />} />
-        <Route path="/winners" element={<Winners />} />
-        <Route path="/jackpot" element={<Jackpot />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/claim" element={<PrizeClaim />} />
-        <Route path="/deposit" element={<Deposit />} />
-        <Route path="/rules" element={<Rules />} />
+        <Route path="/" element={<PlayerRoute><Home /></PlayerRoute>} />
+        <Route path="/lobby" element={<PlayerRoute><Lobby /></PlayerRoute>} />
+        <Route path="/game" element={<PlayerRoute><LiveGame /></PlayerRoute>} />
+        <Route path="/leaderboard" element={<PlayerRoute><Leaderboard /></PlayerRoute>} />
+        <Route path="/winners" element={<PlayerRoute><Winners /></PlayerRoute>} />
+        <Route path="/profile" element={<PlayerRoute><Profile /></PlayerRoute>} />
+        <Route path="/deposit" element={<PlayerRoute><Deposit /></PlayerRoute>} />
+        <Route path="/rules" element={<PlayerRoute><Rules /></PlayerRoute>} />
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </>

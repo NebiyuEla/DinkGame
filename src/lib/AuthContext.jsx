@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { appClient } from '@/api/appClient';
+import { getTelegramProfile } from '@/lib/telegram';
 
 const AuthContext = createContext();
 
@@ -27,7 +28,17 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null);
 
     try {
-      const currentUser = await appClient.auth.me();
+      const telegramProfile = getTelegramProfile();
+      let currentUser = telegramProfile
+        ? await appClient.auth.loginViaEmailPassword(telegramProfile.email)
+        : await appClient.auth.me();
+      if (telegramProfile && currentUser?.id) {
+        currentUser = await appClient.entities.User.update(currentUser.id, {
+          ...telegramProfile,
+          telegram_linked: true,
+          wallet_balance: Number(currentUser.wallet_balance || 0),
+        });
+      }
       setUser(currentUser);
       setIsAuthenticated(true);
     } catch (error) {

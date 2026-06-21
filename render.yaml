@@ -10,6 +10,10 @@ services:
         value: 20
       - key: DINK_DATA_FILE
         value: /opt/render/project/src/data/dink-data.json
+      - key: CHAPA_SECRET_KEY
+        sync: false
+      - key: CHAPA_WEBHOOK_SECRET
+        sync: false
     disk:
       name: dink-data
       mountPath: /opt/render/project/src/data

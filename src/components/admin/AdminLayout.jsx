@@ -1,21 +1,20 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Gamepad2, HelpCircle, Trophy, Users, Gift,
-  Zap, Megaphone, Shield, Settings, LogOut, Menu, X
+  LayoutDashboard, Gamepad2, HelpCircle, Trophy, Users,
+  Zap, Megaphone, Shield, Settings, LogOut, Menu, X, Wallet
 } from 'lucide-react';
 import { useAdmin } from '@/lib/adminContext';
 import DinkLogo from '@/components/DinkLogo';
 
 const NAV = [
+  { path: '/admin/live', icon: Zap, label: 'Live Controller' },
   { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/admin/games', icon: Gamepad2, label: 'Games' },
   { path: '/admin/questions', icon: HelpCircle, label: 'Questions' },
-  { path: '/admin/live', icon: Zap, label: 'Live Controller' },
   { path: '/admin/users', icon: Users, label: 'Users' },
   { path: '/admin/winners', icon: Trophy, label: 'Winners' },
-  { path: '/admin/claims', icon: Gift, label: 'Prize Claims' },
-  { path: '/admin/jackpot', icon: Trophy, label: 'Jackpot' },
+  { path: '/admin/withdrawals', icon: Wallet, label: 'Withdrawals' },
   { path: '/admin/broadcasts', icon: Megaphone, label: 'Broadcasts' },
   { path: '/admin/anticheat', icon: Shield, label: 'Anti-Cheat' },
   { path: '/admin/settings', icon: Settings, label: 'Settings' },

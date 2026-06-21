@@ -1,246 +1,288 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Edit, Trash2, Search } from 'lucide-react';
+import { CheckCircle, Plus, Save, Trash2 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { appClient } from '@/api/appClient';
 
-const DIFFICULTIES = ['easy', 'medium', 'hard'];
-const OPTION_LABELS = ['A', 'B', 'C', 'D'];
+const LABELS = ['A', 'B', 'C', 'D'];
+const inputClass = 'w-full bg-navy-dark border border-border rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-gold';
 
-const emptyForm = () => ({
-  game_id: '', text: '', image_url: '', explanation: '', options: [
-    { label: 'A', text: '' }, { label: 'B', text: '' },
-    { label: 'C', text: '' }, { label: 'D', text: '' }
+const emptyQuestion = (gameId, orderIndex) => ({
+  temp_id: `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  game_id: gameId,
+  text: '',
+  explanation: '',
+  options: [
+    { label: 'A', text: '' },
+    { label: 'B', text: '' },
+    { label: 'C', text: '' },
   ],
-  correct_option: 'A', category: '', difficulty: 'medium', time_limit: 10, order_index: 0
+  correct_option: 'A',
+  time_limit: 10,
+  order_index: orderIndex,
+  difficulty: 'medium',
+  category: '',
+  is_active: true,
 });
+
+function normalizeQuestion(question, fallbackGameId, index) {
+  const options = (question.options?.length ? question.options : emptyQuestion(fallbackGameId, index).options)
+    .slice(0, 4)
+    .map((option, optionIndex) => ({ label: LABELS[optionIndex], text: option.text || '' }));
+  while (options.length < 3) options.push({ label: LABELS[options.length], text: '' });
+  return {
+    ...emptyQuestion(fallbackGameId, index),
+    ...question,
+    options,
+    correct_option: options.some(option => option.label === question.correct_option) ? question.correct_option : options[0].label,
+    order_index: Number(question.order_index ?? index),
+  };
+}
 
 export default function AdminQuestions() {
   const location = useLocation();
-  const [questions, setQuestions] = useState([]);
   const [games, setGames] = useState([]);
   const [selectedGame, setSelectedGame] = useState('');
+  const [drafts, setDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingQ, setEditingQ] = useState(null);
-  const [form, setForm] = useState(emptyForm());
-  const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState('');
+  const [savingId, setSavingId] = useState('');
 
   useEffect(() => {
-    const load = async () => {
-      const g = await appClient.entities.Game.list('-created_date', 50);
-      setGames(g);
+    const loadGames = async () => {
+      const rows = await appClient.entities.Game.list('-created_date', 100);
       const params = new URLSearchParams(location.search);
-      const requestedGame = params.get('game');
-      if (requestedGame && g.some(game => game.id === requestedGame)) setSelectedGame(requestedGame);
-      else if (g.length > 0) setSelectedGame(g[0].id);
+      const requested = params.get('game');
+      setGames(rows);
+      setSelectedGame(requested && rows.some(game => game.id === requested) ? requested : rows[0]?.id || '');
     };
-    load();
+    loadGames();
   }, [location.search]);
 
   useEffect(() => {
-    if (selectedGame) loadQuestions();
+    if (!selectedGame) return;
+    loadQuestions(selectedGame);
   }, [selectedGame]);
 
-  const loadQuestions = async () => {
+  const selectedGameRecord = useMemo(() => games.find(game => game.id === selectedGame), [games, selectedGame]);
+
+  const loadQuestions = async (gameId) => {
     setLoading(true);
     try {
-      const q = await appClient.entities.Question.filter({ game_id: selectedGame }, 'order_index', 100);
-      setQuestions(q);
-    } catch (e) {}
+      const rows = await appClient.entities.Question.filter({ game_id: gameId }, 'order_index', 200);
+      setDrafts(rows.map((question, index) => normalizeQuestion(question, gameId, index)));
+    } catch {
+      setDrafts([]);
+    }
     setLoading(false);
   };
 
-  const openCreate = () => {
-    setEditingQ(null);
-    setForm({ ...emptyForm(), game_id: selectedGame, order_index: questions.length });
-    setShowForm(true);
+  const updateDraft = (key, patch) => {
+    setDrafts(prev => prev.map(item => (item.id || item.temp_id) === key ? { ...item, ...patch } : item));
   };
 
-  const openEdit = (q) => {
-    setEditingQ(q);
-    setForm({
-      game_id: q.game_id, text: q.text, image_url: q.image_url || '', explanation: q.explanation || '',
-      options: q.options || emptyForm().options, correct_option: q.correct_option,
-      category: q.category || '', difficulty: q.difficulty, time_limit: q.time_limit, order_index: q.order_index
-    });
-    setShowForm(true);
+  const updateOption = (key, index, text) => {
+    setDrafts(prev => prev.map(item => {
+      if ((item.id || item.temp_id) !== key) return item;
+      return { ...item, options: item.options.map((option, optionIndex) => optionIndex === index ? { ...option, text } : option) };
+    }));
   };
 
-  const handleSave = async () => {
-    if (!form.text.trim()) return;
-    if ((form.options || []).some(opt => !opt.text.trim())) {
-      alert('Fill all answer options before saving.');
+  const addQuestion = () => {
+    setDrafts(prev => [...prev, emptyQuestion(selectedGame, prev.length)]);
+  };
+
+  const addOption = (key) => {
+    setDrafts(prev => prev.map(item => {
+      if ((item.id || item.temp_id) !== key || item.options.length >= 4) return item;
+      const nextOptions = [...item.options, { label: LABELS[item.options.length], text: '' }];
+      return { ...item, options: nextOptions };
+    }));
+  };
+
+  const removeOption = (key, index) => {
+    setDrafts(prev => prev.map(item => {
+      if ((item.id || item.temp_id) !== key || item.options.length <= 3) return item;
+      const options = item.options.filter((_, optionIndex) => optionIndex !== index).map((option, optionIndex) => ({ ...option, label: LABELS[optionIndex] }));
+      return {
+        ...item,
+        options,
+        correct_option: options.some(option => option.label === item.correct_option) ? item.correct_option : options[0].label,
+      };
+    }));
+  };
+
+  const saveQuestion = async (question, index) => {
+    const key = question.id || question.temp_id;
+    if (!question.text.trim()) {
+      alert('Question text is required.');
       return;
     }
-    if (!form.correct_option || !(form.options || []).some(opt => opt.label === form.correct_option)) {
-      alert('Choose a correct answer.');
+    const options = question.options.filter(option => option.text.trim()).slice(0, 4).map((option, optionIndex) => ({ label: LABELS[optionIndex], text: option.text.trim() }));
+    if (options.length < 3 || options.length > 4) {
+      alert('Each question needs 3 or 4 answers.');
       return;
     }
-    setSaving(true);
+    const correctOption = options.some(option => option.label === question.correct_option) ? question.correct_option : options[0].label;
+    setSavingId(key);
     try {
-      if (editingQ) await appClient.entities.Question.update(editingQ.id, { ...form, is_active: true });
-      else await appClient.entities.Question.create({ ...form, is_active: true });
-      const updated = await appClient.entities.Question.filter({ game_id: form.game_id, is_active: true }, 'order_index', 200);
-      await appClient.entities.Game.update(form.game_id, { total_questions: updated.length });
-      await loadQuestions();
-      setShowForm(false);
-    } catch (e) { alert('Failed to save question'); }
-    setSaving(false);
+      const payload = {
+        game_id: selectedGame,
+        text: question.text.trim(),
+        explanation: question.explanation || '',
+        image_url: question.image_url || '',
+        options,
+        correct_option: correctOption,
+        category: question.category || '',
+        difficulty: question.difficulty || 'medium',
+        time_limit: Number(question.time_limit || selectedGameRecord?.question_timer || 10),
+        order_index: Number(question.order_index ?? index),
+        is_active: true,
+      };
+      if (question.id) await appClient.entities.Question.update(question.id, payload);
+      else await appClient.entities.Question.create(payload);
+      const updated = await appClient.entities.Question.filter({ game_id: selectedGame, is_active: true }, 'order_index', 200);
+      await appClient.entities.Game.update(selectedGame, { total_questions: updated.length });
+      await loadQuestions(selectedGame);
+    } catch (error) {
+      alert(error.message || 'Failed to save question');
+    }
+    setSavingId('');
   };
 
-  const handleDelete = async (id) => {
+  const deleteQuestion = async (question) => {
+    const key = question.id || question.temp_id;
+    if (!question.id) {
+      setDrafts(prev => prev.filter(item => (item.id || item.temp_id) !== key));
+      return;
+    }
     if (!confirm('Delete this question?')) return;
-    await appClient.entities.Question.delete(id);
+    await appClient.entities.Question.delete(question.id);
     const updated = await appClient.entities.Question.filter({ game_id: selectedGame, is_active: true }, 'order_index', 200);
     await appClient.entities.Game.update(selectedGame, { total_questions: updated.length });
-    loadQuestions();
+    await loadQuestions(selectedGame);
   };
-
-  const filtered = questions.filter(q =>
-    q.text?.toLowerCase().includes(search.toLowerCase()) ||
-    q.category?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const diffColors = { easy: 'text-correct-green bg-correct-green/10', medium: 'text-yellow-400 bg-yellow-400/10', hard: 'text-wrong-red bg-wrong-red/10' };
 
   return (
     <AdminLayout>
       <div className="space-y-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
+            <p className="text-xs text-gold font-black tracking-widest">QUESTION BUILDER</p>
             <h1 className="font-game text-xl font-black text-white">Questions</h1>
-            <p className="text-muted-foreground text-sm">Manage quiz questions</p>
+            <p className="text-muted-foreground text-sm">Build questions inline. Every question supports 3 or 4 answer choices.</p>
           </div>
-          <button onClick={openCreate} className="flex items-center gap-2 gradient-purple-blue text-white font-bold px-4 py-2.5 rounded-xl text-sm">
+          <button onClick={addQuestion} disabled={!selectedGame} className="flex items-center gap-2 bg-primary text-white font-black px-4 py-2.5 rounded-full text-sm disabled:opacity-50">
             <Plus size={16} /> Add Question
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-3">
-          <select value={selectedGame} onChange={e => setSelectedGame(e.target.value)}
-            className="bg-navy-light border border-border rounded-xl px-3 py-2 text-white text-sm outline-none flex-1">
-            {games.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
+        <section className="glass-card rounded-2xl p-4 border border-border/50">
+          <label className="block text-xs font-black text-muted-foreground mb-2">SELECT GAME</label>
+          <select value={selectedGame} onChange={e => setSelectedGame(e.target.value)} className={inputClass}>
+            {games.map(game => <option key={game.id} value={game.id}>{game.title} ({game.status})</option>)}
           </select>
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search questions..."
-              className="w-full bg-navy-light border border-border rounded-xl pl-9 pr-3 py-2 text-white text-sm outline-none" />
-          </div>
-        </div>
+        </section>
 
-        {/* Question Form */}
-        {showForm && (
-          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-            <div className="glass-card rounded-2xl border border-neon-purple/30 w-full max-w-lg max-h-[90vh] overflow-y-auto p-5">
-              <h2 className="font-game font-bold text-white mb-4">{editingQ ? 'Edit Question' : 'Add Question'}</h2>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground mb-1 tracking-widest">QUESTION TEXT *</label>
-                  <textarea value={form.text} onChange={e => setForm(f => ({ ...f, text: e.target.value }))} rows={3}
-                    className="w-full bg-navy-dark border border-border rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-neon-purple resize-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground mb-1 tracking-widest">IMAGE URL (OPTIONAL)</label>
-                  <input type="text" value={form.image_url} onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))}
-                    className="w-full bg-navy-dark border border-border rounded-xl px-3 py-2.5 text-white text-sm outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground mb-1 tracking-widest">EXPLANATION SHOWN AFTER REVEAL</label>
-                  <textarea value={form.explanation} onChange={e => setForm(f => ({ ...f, explanation: e.target.value }))} rows={3}
-                    className="w-full bg-navy-dark border border-border rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-neon-purple resize-none"
-                    placeholder="Explain the answer. Players see this only after admin reveal." />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground mb-2 tracking-widest">ANSWER OPTIONS</label>
-                  <div className="space-y-2">
-                    {form.options.map((opt, i) => (
-                      <div key={opt.label} className={`flex items-center gap-2 p-2 rounded-xl border ${form.correct_option === opt.label ? 'border-correct-green bg-correct-green/10' : 'border-border'}`}>
-                        <button type="button" onClick={() => setForm(f => ({ ...f, correct_option: opt.label }))}
-                          className={`w-7 h-7 rounded-lg font-game font-bold text-xs flex-shrink-0 ${form.correct_option === opt.label ? 'bg-correct-green text-white' : 'bg-navy-light text-muted-foreground'}`}>
-                          {opt.label}
-                        </button>
-                        <input value={opt.text}
-                          onChange={e => setForm(f => ({ ...f, options: f.options.map((o, oi) => oi === i ? { ...o, text: e.target.value } : o) }))}
-                          className="flex-1 bg-transparent text-white text-sm outline-none"
-                          placeholder={`Option ${opt.label}`} />
-                        {form.correct_option === opt.label && <span className="text-xs text-correct-green font-bold">✓ Correct</span>}
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => <div key={i} className="glass-card rounded-2xl p-4 h-32 animate-pulse border border-border/50" />)}
+          </div>
+        ) : drafts.length === 0 ? (
+          <div className="glass-card rounded-2xl p-8 border border-border/50 text-center">
+            <p className="text-muted-foreground mb-4">No questions yet for this game.</p>
+            <button onClick={addQuestion} className="inline-flex items-center gap-2 bg-primary text-white font-black px-4 py-2.5 rounded-full text-sm">
+              <Plus size={16} /> Add First Question
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {drafts.map((question, index) => {
+              const key = question.id || question.temp_id;
+              return (
+                <article key={key} className="glass-card rounded-2xl border border-border/50 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-gold/15 text-gold flex items-center justify-center font-black text-sm">{index + 1}</div>
+                      <div>
+                        <p className="font-black text-white text-sm">Question {index + 1}</p>
+                        <p className="text-xs text-muted-foreground">{question.id ? 'Saved' : 'Draft'}</p>
                       </div>
-                    ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => saveQuestion(question, index)} disabled={savingId === key}
+                        className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center disabled:opacity-50" title="Save">
+                        <Save size={15} />
+                      </button>
+                      <button onClick={() => deleteQuestion(question)} className="w-9 h-9 rounded-full bg-wrong-red/20 text-wrong-red flex items-center justify-center" title="Delete">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Click a label to mark it as the correct answer</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground mb-1 tracking-widest">CATEGORY</label>
-                    <input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                      className="w-full bg-navy-dark border border-border rounded-xl px-3 py-2.5 text-white text-sm outline-none" />
+
+                  <div className="space-y-3">
+                    <textarea
+                      value={question.text}
+                      onChange={e => updateDraft(key, { text: e.target.value })}
+                      rows={3}
+                      className={`${inputClass} resize-none text-base font-bold`}
+                      placeholder="Type the question here"
+                    />
+
+                    <div className="space-y-2">
+                      {question.options.map((option, optionIndex) => {
+                        const isCorrect = question.correct_option === option.label;
+                        return (
+                          <div key={option.label} className={`flex items-center gap-2 rounded-2xl border p-2 ${isCorrect ? 'border-correct-green bg-correct-green/10' : 'border-border/50 bg-navy-dark/40'}`}>
+                            <button
+                              type="button"
+                              onClick={() => updateDraft(key, { correct_option: option.label })}
+                              className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${isCorrect ? 'bg-correct-green text-white' : 'bg-navy-light text-muted-foreground'}`}
+                              title="Mark correct"
+                            >
+                              {isCorrect ? <CheckCircle size={15} /> : optionIndex + 1}
+                            </button>
+                            <input
+                              value={option.text}
+                              onChange={e => updateOption(key, optionIndex, e.target.value)}
+                              className="flex-1 bg-transparent text-white text-sm outline-none"
+                              placeholder={`Answer ${optionIndex + 1}`}
+                            />
+                            {question.options.length > 3 && (
+                              <button onClick={() => removeOption(key, optionIndex)} className="w-8 h-8 rounded-full bg-wrong-red/15 text-wrong-red flex items-center justify-center">
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {question.options.length < 4 && (
+                        <button onClick={() => addOption(key)} className="text-xs font-black text-gold px-2 py-1">
+                          Add fourth answer
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-muted-foreground mb-1">EXPLANATION</label>
+                        <textarea value={question.explanation} onChange={e => updateDraft(key, { explanation: e.target.value })} rows={3}
+                          className={`${inputClass} resize-none`} placeholder="Shown only after admin reveals answer" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-muted-foreground mb-1">TIME SEC</label>
+                        <input type="number" min={5} max={60} value={question.time_limit} onChange={e => updateDraft(key, { time_limit: Number(e.target.value) })} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-muted-foreground mb-1">ORDER</label>
+                        <input type="number" value={question.order_index} onChange={e => updateDraft(key, { order_index: Number(e.target.value) })} className={inputClass} />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground mb-1 tracking-widest">DIFFICULTY</label>
-                    <select value={form.difficulty} onChange={e => setForm(f => ({ ...f, difficulty: e.target.value }))}
-                      className="w-full bg-navy-dark border border-border rounded-xl px-3 py-2.5 text-white text-sm outline-none">
-                      {DIFFICULTIES.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground mb-1 tracking-widest">TIME LIMIT (SEC)</label>
-                    <input type="number" min={5} max={60} value={form.time_limit} onChange={e => setForm(f => ({ ...f, time_limit: Number(e.target.value) }))}
-                      className="w-full bg-navy-dark border border-border rounded-xl px-3 py-2.5 text-white text-sm outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground mb-1 tracking-widest">ORDER</label>
-                    <input type="number" value={form.order_index} onChange={e => setForm(f => ({ ...f, order_index: Number(e.target.value) }))}
-                      className="w-full bg-navy-dark border border-border rounded-xl px-3 py-2.5 text-white text-sm outline-none" />
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-3 mt-5">
-                <button onClick={() => setShowForm(false)} className="flex-1 bg-navy-light text-muted-foreground font-bold py-3 rounded-xl">Cancel</button>
-                <button onClick={handleSave} disabled={saving} className="flex-1 gradient-purple-blue text-white font-bold py-3 rounded-xl disabled:opacity-50">
-                  {saving ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            </div>
+                </article>
+              );
+            })}
           </div>
         )}
-
-        {/* Questions list */}
-        <div className="space-y-3">
-          {loading ? (
-            [1,2,3].map(i => <div key={i} className="glass-card rounded-xl p-4 border border-border/50 h-16 animate-pulse" />)
-          ) : filtered.length === 0 ? (
-            <div className="glass-card rounded-2xl p-8 border border-border/50 text-center">
-              <p className="text-muted-foreground">{questions.length === 0 ? 'No questions yet. Add the first one!' : 'No questions match your search.'}</p>
-            </div>
-          ) : filtered.map((q, i) => (
-            <div key={q.id} className="glass-card rounded-xl p-4 border border-border/50 flex items-start gap-3">
-              <div className="w-7 h-7 rounded-lg bg-neon-purple/20 flex items-center justify-center flex-shrink-0 text-xs font-bold text-neon-purple">
-                {i + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white truncate">{q.text}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  {q.category && <span className="text-xs text-muted-foreground">{q.category}</span>}
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${diffColors[q.difficulty] || ''}`}>{q.difficulty}</span>
-                  <span className="text-xs text-muted-foreground">{q.time_limit}s</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button onClick={() => openEdit(q)} className="w-7 h-7 rounded-lg bg-neon-purple/20 flex items-center justify-center">
-                  <Edit size={12} className="text-neon-purple" />
-                </button>
-                <button onClick={() => handleDelete(q.id)} className="w-7 h-7 rounded-lg bg-wrong-red/20 flex items-center justify-center">
-                  <Trash2 size={12} className="text-wrong-red" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </AdminLayout>
   );

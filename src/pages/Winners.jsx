@@ -1,196 +1,149 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Trophy } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Medal, Sparkles, Trophy, Wallet } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
-import RankBadge from '@/components/RankBadge';
 import Confetti from '@/components/Confetti';
 import { LeaderboardSkeleton } from '@/components/LoadingSkeleton';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
 
-const TABS = ['This Week', 'All Time', 'Jackpot'];
-
-// Get start of this ISO week (Monday 00:00)
-function getWeekStart() {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun
-  const diff = (day === 0 ? -6 : 1) - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diff);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
-
-function WinnerAvatar({ name, photoUrl }) {
+function WinnerAvatar({ user }) {
+  const initial = user?.full_name?.[0] || user?.username?.[0] || 'P';
   return (
-    <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center overflow-hidden flex-shrink-0">
-      {photoUrl
-        ? <img src={photoUrl} className="w-full h-full object-cover" alt="" />
-        : <span className="text-sm font-bold text-primary uppercase">{(name || 'P')[0]}</span>}
+    <div className="w-11 h-11 rounded-full bg-primary/10 border border-primary/25 flex items-center justify-center overflow-hidden">
+      {user?.photo_url
+        ? <img src={user.photo_url} className="w-full h-full object-cover" alt="" />
+        : <span className="text-sm font-black text-primary uppercase">{initial}</span>}
     </div>
   );
 }
 
 export default function Winners() {
-  const [activeTab, setActiveTab] = useState('This Week');
-  const [winners, setWinners] = useState([]);
-  const [jackpotWinners, setJackpotWinners] = useState([]);
+  const { search } = useLocation();
+  const { currentUser } = useGame();
+  const [players, setPlayers] = useState([]);
+  const [game, setGame] = useState(null);
   const [userMap, setUserMap] = useState({});
   const [loading, setLoading] = useState(true);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const { currentGame, gameStatus, currentUser } = useGame();
-  const mountedRef = useRef(true);
+  const gameId = useMemo(() => new URLSearchParams(search).get('game'), [search]);
 
   useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [allUsers, games] = await Promise.all([
+          appClient.entities.User.list(),
+          gameId ? appClient.entities.Game.filter({ id: gameId }, '-created_date', 1) : Promise.resolve([]),
+        ]);
+        const rows = gameId
+          ? await appClient.entities.GamePlayer.filter({ game_id: gameId }, '-wallet_credit', 200)
+          : await appClient.entities.GamePlayer.filter({ status: 'winner' }, '-updated_date', 200);
 
-  useEffect(() => {
-    if (gameStatus === 'ended') {
-      setShowConfetti(true);
-      setTimeout(() => { if (mountedRef.current) setShowConfetti(false); }, 6000);
-    }
-  }, [gameStatus]);
+        const winners = rows
+          .filter(player => !player.is_disqualified && !player.is_eliminated && Number(player.wallet_credit || player.prize_share || 0) > 0)
+          .sort((a, b) => Number(b.wallet_credit || b.prize_share || 0) - Number(a.wallet_credit || a.prize_share || 0));
 
-  useEffect(() => {
-    loadWinners();
-  }, [activeTab]);
-
-  const loadWinners = async () => {
-    setLoading(true);
-    try {
-      let players = [];
-
-      if (activeTab === 'This Week') {
-        const weekStart = getWeekStart();
-        const all = await appClient.entities.GamePlayer.filter({}, '-total_score', 100);
-        // Filter to only records from this week
-        players = all.filter(p =>
-          !p.is_disqualified &&
-          !p.is_eliminated &&
-          p.rank >= 1 &&
-          new Date(p.joined_at || p.created_date) >= weekStart
-        ).sort((a, b) => b.total_score - a.total_score || a.total_response_time_ms - b.total_response_time_ms);
-      } else if (activeTab === 'All Time') {
-        const all = await appClient.entities.GamePlayer.filter({}, '-total_score', 50);
-        players = all.filter(p => !p.is_disqualified && !p.is_eliminated).sort((a, b) => b.total_score - a.total_score);
-      } else if (activeTab === 'Jackpot') {
-        const j = await appClient.entities.Jackpot.filter({ winner_user_id: { $exists: true } }, '-won_at', 20);
-        setJackpotWinners(j);
-        setLoading(false);
-        return;
-      }
-
-      setWinners(players.slice(0, 20));
-
-      if (players.length > 0) {
-        const users = await appClient.entities.User.list();
         const map = {};
-        users.forEach(u => { map[u.id] = u; });
-        if (mountedRef.current) setUserMap(map);
+        allUsers.forEach(user => { map[user.id] = user; });
+        if (mounted) {
+          setUserMap(map);
+          setPlayers(winners);
+          setGame(games[0] || null);
+        }
+      } catch {
+        if (mounted) setPlayers([]);
       }
-    } catch (e) {}
-    if (mountedRef.current) setLoading(false);
-  };
+      if (mounted) setLoading(false);
+    };
+    load();
+    return () => { mounted = false; };
+  }, [gameId]);
 
   const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
-
-  const jackpotShare = currentGame?.jackpot_amount ? Math.floor(currentGame.jackpot_amount / 3) : 0;
-  const prizeForRank = (i) => {
-    if (i === 0) return currentGame?.prize_amount || 0;
-    if (i < 3) return jackpotShare;
-    return 0;
-  };
+  const myWin = players.find(player => player.user_id === currentUser?.id);
+  const totalPaid = players.reduce((sum, player) => sum + Number(player.wallet_credit || player.prize_share || 0), 0);
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <Confetti active={showConfetti} />
+    <div className="min-h-screen bg-background pb-24" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <Confetti active={Boolean(myWin)} />
 
-      {/* Game ended banner */}
-      {gameStatus === 'ended' && currentGame && (
-        <div className="mx-4 mt-4 bg-card rounded-2xl p-4 border border-gold/40 text-center animate-bounce-in">
-          <Trophy size={28} className="text-gold mx-auto mb-2" />
-          <h2 className="font-game text-lg font-black text-foreground">Game Over</h2>
-          <p className="text-muted-foreground text-sm mt-0.5">{currentGame.title} has ended</p>
+      <header className="px-4 pt-4 pb-3 bg-card border-b border-border">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-game text-xl font-black text-foreground flex items-center gap-2">
+              <Trophy size={19} className="text-gold" />
+              Winners
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">{game?.title || 'Wallet payouts after games end'}</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center">
+            <Medal size={18} className="text-gold" />
+          </div>
         </div>
+      </header>
+
+      {myWin && (
+        <section className="px-4 pt-4">
+          <div className="relative overflow-hidden rounded-[1.7rem] bg-card border border-gold/35 p-5 text-center animate-bounce-in">
+            <div className="absolute -left-8 top-5 w-20 h-20 rounded-full border-4 border-gold/20" />
+            <div className="absolute right-4 bottom-4 w-3 h-3 rounded-full bg-gold" />
+            <Sparkles size={22} className="mx-auto text-gold mb-2" />
+            <p className="text-sm font-black text-foreground">{currentUser?.full_name || 'Player'}</p>
+            <p className="font-amharic text-lg font-black text-foreground mt-1">እንኳን ደስ አለዎት</p>
+            <div className="mx-auto my-5 w-40 h-40 bg-primary flex items-center justify-center shadow-xl"
+              style={{ clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 56%, 79% 92%, 50% 70%, 21% 92%, 32% 56%, 2% 35%, 39% 35%)' }}>
+              <span className="font-game text-2xl font-black text-white">{fmt(myWin.wallet_credit || myWin.prize_share)}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">The amount has been added to your wallet. Telebirr withdrawal starts from 100 ETB.</p>
+          </div>
+        </section>
       )}
 
-      <div className="px-4 pt-5 pb-3 border-b border-border bg-card">
-        <h1 className="font-game text-xl font-black text-foreground flex items-center gap-2">
-          <Trophy size={18} className="text-gold" />
-          Winners
-        </h1>
-        <p className="text-muted-foreground text-xs mt-0.5">Top players and their prizes</p>
-      </div>
-
-      <div className="px-4 py-3 border-b border-border bg-card">
-        <div className="bg-muted rounded-2xl p-1 flex gap-1">
-          {TABS.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-2 rounded-xl font-semibold text-xs transition-all duration-200 ${
-                activeTab === tab ? 'bg-card text-foreground shadow-sm font-bold' : 'text-muted-foreground'
-              }`}>{tab}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="px-4 pt-3 space-y-2.5">
-        {loading ? <LeaderboardSkeleton /> : activeTab === 'Jackpot' ? (
-          jackpotWinners.length === 0 ? (
-            <div className="text-center py-12">
-              <Trophy size={44} className="text-muted-foreground/20 mx-auto mb-3" />
-              <p className="text-foreground font-semibold">No jackpot winners yet</p>
-            </div>
-          ) : jackpotWinners.map((j, i) => (
-            <div key={j.id} className="bg-card rounded-2xl p-4 border border-gold/30 flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-foreground text-sm">{userMap[j.winner_user_id]?.full_name || 'Winner'}</p>
-                <p className="text-xs text-muted-foreground">{j.label || 'Jackpot'} · {j.won_at ? new Date(j.won_at).toLocaleDateString() : ''}</p>
-              </div>
-              <p className="font-game text-gold font-black text-sm">{fmt(j.amount)}</p>
-            </div>
-          ))
-        ) : winners.length === 0 ? (
-          <div className="text-center py-12">
-            <Trophy size={44} className="text-muted-foreground/20 mx-auto mb-3" />
-            <p className="text-foreground font-semibold">No winners yet</p>
-            <p className="text-muted-foreground text-sm mt-1">
-              {activeTab === 'This Week' ? 'Play this week to appear here' : 'Winners appear after games end'}
-            </p>
+      <section className="px-4 pt-4">
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="bg-card rounded-2xl p-4 border border-border">
+            <p className="text-[10px] font-black text-muted-foreground tracking-widest">WINNERS</p>
+            <p className="font-game text-2xl font-black text-foreground mt-1">{players.length}</p>
           </div>
-        ) : winners.map((player, i) => {
-          const user = userMap[player.user_id];
-          const prize = prizeForRank(i);
-          const isMe = player.user_id === currentUser?.id;
-          return (
-            <div key={player.id}
-              className={`bg-card rounded-2xl p-4 border flex items-center gap-3 ${
-                i === 0 ? 'border-gold/40' : isMe ? 'border-primary/30' : 'border-border'
-              }`}>
-              <RankBadge rank={i + 1} />
-              <WinnerAvatar name={user?.full_name || user?.username} photoUrl={user?.photo_url} />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground text-sm truncate">
-                  {user?.full_name || `Player ${i + 1}`}
-                  {isMe && <span className="text-primary text-xs ml-1 font-bold">· You</span>}
-                </p>
-                <p className="text-xs text-muted-foreground">{player.total_score?.toLocaleString()} pts</p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                {prize > 0 ? (
-                  <>
-                    <p className="font-game text-gold font-black text-sm">{fmt(prize)}</p>
-                    {isMe && <Link to="/claim" className="text-[10px] text-primary font-semibold">Claim</Link>}
-                  </>
-                ) : (
-                  <p className="text-xs text-muted-foreground">—</p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+          <div className="bg-card rounded-2xl p-4 border border-border">
+            <p className="text-[10px] font-black text-muted-foreground tracking-widest">PAID OUT</p>
+            <p className="font-game text-2xl font-black text-primary mt-1">{fmt(totalPaid)}</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <LeaderboardSkeleton />
+        ) : players.length === 0 ? (
+          <div className="bg-card rounded-2xl border border-border p-8 text-center">
+            <Trophy size={42} className="text-muted-foreground/25 mx-auto mb-3" />
+            <p className="font-bold text-foreground">No winners yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Winners appear here after an admin ends the game.</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {players.map((player, index) => {
+              const user = userMap[player.user_id];
+              const isMe = player.user_id === currentUser?.id;
+              return (
+                <div key={player.id} className={`bg-card rounded-2xl p-4 border flex items-center gap-3 ${isMe ? 'border-primary/35 bg-primary/5' : 'border-border'}`}>
+                  <div className="w-8 h-8 rounded-full bg-gold/15 text-gold flex items-center justify-center font-black text-sm">{index + 1}</div>
+                  <WinnerAvatar user={user} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black text-foreground truncate">{user?.full_name || player.username || `Player ${index + 1}`}</p>
+                    <p className="text-xs text-muted-foreground">{player.total_score || 0} pts</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-game text-primary font-black text-sm">{fmt(player.wallet_credit || player.prize_share)}</p>
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1 justify-end"><Wallet size={10} /> wallet</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <BottomNav />
     </div>
   );

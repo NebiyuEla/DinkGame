@@ -1,22 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Trophy, Bell, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
-import DinkLogo from '@/components/DinkLogo';
+import { ArrowLeft, MessageCircle, Send, ShieldCheck, Users } from 'lucide-react';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
 
-const RULES = [
-  'Each question has a time limit. Answer fast for bonus points',
-  'Once submitted, answers cannot be changed',
-  'Top 3 players share the jackpot equally',
-  'First place wins the main prize',
-  'Cheating tools and bots are strictly banned',
-  'Mobile-first layout for Telegram and Render testing',
+const WAITING_LINES = [
+  'ጨዋታው ሊጀምር ነው',
+  'ኔትዎርኮ አሪፍ መሆኑን ያረጋግጡ',
+  'ጨዋታው ከተጀመረ በኋላ መውጣት አይቻልም',
+  'መልሱን በፍጥነት ይምረጡ',
+  'በጨዋታው ውስጥ ፍትሃዊ ይሁኑ',
 ];
 
 const isActivePlayer = (player) => (
   !player.is_disqualified &&
   !player.is_eliminated &&
+  !player.game_banned &&
   ['lobby', 'playing'].includes(player.status || 'lobby')
 );
 
@@ -24,153 +23,154 @@ export default function Lobby() {
   const navigate = useNavigate();
   const { currentGame, currentUser, gameStatus, setGameStatus, loadActiveGame } = useGame();
   const [playerCount, setPlayerCount] = useState(0);
-  const [showRules, setShowRules] = useState(false);
-  const [joined, setJoined] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [chatText, setChatText] = useState('');
+  const [noticeIndex, setNoticeIndex] = useState(0);
   const pollRef = useRef(null);
+  const chatEndRef = useRef(null);
+
+  const activeNotice = useMemo(() => WAITING_LINES[noticeIndex % WAITING_LINES.length], [noticeIndex]);
+
+  const loadLobby = async () => {
+    if (!currentGame?.id) return;
+    const [gameRows, players, chats] = await Promise.all([
+      appClient.entities.Game.filter({ id: currentGame.id }, '-created_date', 1),
+      appClient.entities.GamePlayer.filter({ game_id: currentGame.id }, '-created_date', 500),
+      appClient.entities.ChatMessage.filter({ game_id: currentGame.id }, 'created_date', 80),
+    ]);
+
+    const game = gameRows[0] || currentGame;
+    if (game.status === 'live') {
+      setGameStatus('live');
+      navigate('/game');
+      return;
+    }
+    if (game.status === 'ended') {
+      navigate('/winners');
+      return;
+    }
+
+    const active = players.filter(isActivePlayer).length;
+    setPlayerCount(active);
+    setMessages(chats);
+    if (active !== game.total_players) {
+      await appClient.entities.Game.update(currentGame.id, { total_players: active });
+    }
+  };
 
   useEffect(() => {
-    if (!currentGame) { loadActiveGame(); return; }
-    if (gameStatus === 'live') { navigate('/game'); return; }
+    if (!currentGame) { loadActiveGame(); return undefined; }
+    if (gameStatus === 'live') { navigate('/game'); return undefined; }
 
-    const joinLobby = async () => {
-      if (!currentUser || joined) return;
-      try {
-        const existing = await appClient.entities.GamePlayer.filter({ game_id: currentGame.id, user_id: currentUser.id });
-        if (existing.length === 0) {
-          await appClient.entities.GamePlayer.create({
-            game_id: currentGame.id, user_id: currentUser.id,
-            joined_at: new Date().toISOString(), status: 'lobby'
-          });
-        } else {
-          await appClient.entities.GamePlayer.update(existing[0].id, {
-            status: 'lobby',
-            last_seen: new Date().toISOString(),
-          });
-        }
-        setJoined(true);
-        const players = await appClient.entities.GamePlayer.filter({ game_id: currentGame.id });
-        const activeCount = players.filter(isActivePlayer).length;
-        await appClient.entities.Game.update(currentGame.id, { total_players: activeCount });
-        setPlayerCount(activeCount);
-      } catch (e) {}
-    };
-    joinLobby();
-
-    pollRef.current = setInterval(async () => {
-      try {
-        const games = await appClient.entities.Game.filter({ id: currentGame.id }, '-created_date', 1);
-        if (games.length > 0) {
-          const g = games[0];
-          if (g.status === 'live') { setGameStatus('live'); clearInterval(pollRef.current); navigate('/game'); return; }
-          if (g.status === 'ended') { clearInterval(pollRef.current); navigate('/winners'); return; }
-          const players = await appClient.entities.GamePlayer.filter({ game_id: currentGame.id });
-          const activeCount = players.filter(isActivePlayer).length;
-          setPlayerCount(activeCount);
-          if (activeCount !== g.total_players) {
-            await appClient.entities.Game.update(currentGame.id, { total_players: activeCount });
-          }
-        }
-      } catch (e) {}
-    }, 3000);
-
-    // Decrease player count on unload
-    const handleUnload = async () => {
-      if (currentUser) {
-        try {
-          const existing = await appClient.entities.GamePlayer.filter({ game_id: currentGame.id, user_id: currentUser.id });
-          if (existing.length > 0) {
-            await appClient.entities.GamePlayer.update(existing[0].id, { status: 'disconnected' });
-          }
-        } catch (e) {}
+    const join = async () => {
+      if (!currentUser?.id) return;
+      const bans = await appClient.entities.GameBan.filter({ game_id: currentGame.id, user_id: currentUser.id, is_active: true }, '-created_date', 1).catch(() => []);
+      if (bans.length > 0) {
+        navigate('/');
+        return;
       }
+      const existing = await appClient.entities.GamePlayer.filter({ game_id: currentGame.id, user_id: currentUser.id }, '-created_date', 1);
+      if (existing.length === 0) {
+        await appClient.entities.GamePlayer.create({
+          game_id: currentGame.id,
+          user_id: currentUser.id,
+          username: currentUser.full_name || currentUser.username || 'Player',
+          joined_at: new Date().toISOString(),
+          status: 'lobby',
+        });
+      } else {
+        await appClient.entities.GamePlayer.update(existing[0].id, {
+          status: 'lobby',
+          last_seen: new Date().toISOString(),
+        });
+      }
+      await loadLobby();
     };
-    window.addEventListener('beforeunload', handleUnload);
 
+    join();
+    pollRef.current = setInterval(loadLobby, 2000);
+    const noticeTimer = setInterval(() => setNoticeIndex(i => i + 1), 2800);
     return () => {
       clearInterval(pollRef.current);
-      window.removeEventListener('beforeunload', handleUnload);
+      clearInterval(noticeTimer);
     };
-  }, [currentGame?.id, currentUser?.id]);
+  }, [currentGame?.id, currentUser?.id, gameStatus]);
 
-  const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    const text = chatText.trim();
+    if (!text || !currentGame?.id || !currentUser?.id) return;
+    setChatText('');
+    await appClient.entities.ChatMessage.create({
+      game_id: currentGame.id,
+      user_id: currentUser.id,
+      username: currentUser.full_name || currentUser.username || 'Player',
+      message: text.slice(0, 120),
+    });
+    await loadLobby();
+  };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="px-4 pt-6">
-        <div className="flex items-center justify-between mb-5">
-          <button onClick={() => navigate('/')} className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center">
-            <ArrowLeft size={18} className="text-foreground" />
-          </button>
-          <DinkLogo size="sm" />
-          <div className="w-9" />
-        </div>
-
-        {/* Live player counter */}
-        <div className="bg-card rounded-2xl p-5 border border-border text-center mb-3 shadow-sm">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <div className="w-2 h-2 rounded-full bg-primary animate-live-pulse" />
-            <span className="font-game text-primary text-sm font-bold tracking-widest">LOBBY OPEN</span>
-          </div>
-          <div className="flex items-center justify-center gap-3">
-            <Users size={20} className="text-muted-foreground" />
-            <span className="font-game text-foreground font-black text-4xl">{playerCount.toLocaleString()}</span>
-          </div>
-          <p className="text-muted-foreground text-sm mt-1">players in lobby</p>
-          {currentGame && <p className="text-foreground font-semibold text-sm mt-2">{currentGame.title}</p>}
-        </div>
-
-        {/* Status */}
-        <div className="bg-card rounded-2xl p-4 border border-border text-center mb-3 shadow-sm">
-          <div className="w-12 h-12 rounded-2xl gradient-purple-blue flex items-center justify-center mx-auto mb-3 glow-purple animate-float">
-            <Trophy size={22} className="text-white" />
-          </div>
-          <h2 className="font-game text-base font-black text-foreground mb-1">Game Starts Soon</h2>
-          <p className="text-muted-foreground text-sm">The host will start the game shortly</p>
-          {currentGame?.scheduled_at && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Scheduled: {new Date(currentGame.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </p>
-          )}
-        </div>
-
-        {/* Prize */}
-        {currentGame?.prize_amount > 0 && (
-          <div className="mb-3 bg-card rounded-2xl p-4 border border-gold/30 flex items-center justify-between shadow-sm">
-            <div>
-              <p className="text-xs text-muted-foreground font-semibold tracking-widest">PRIZE POOL</p>
-              <p className="font-game text-xl font-black text-gold">{fmt(currentGame.prize_amount)}</p>
-              {currentGame.jackpot_amount > 0 && (
-                <p className="text-xs text-muted-foreground mt-0.5">+{fmt(currentGame.jackpot_amount)} jackpot (top 3)</p>
-              )}
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center">
-              <Trophy size={18} className="text-gold" />
-            </div>
-          </div>
-        )}
-
-        {/* Rules */}
-        <button onClick={() => setShowRules(!showRules)}
-          className="w-full bg-card rounded-2xl p-4 border border-border flex items-center justify-between shadow-sm mb-1">
-          <div className="flex items-center gap-2">
-            <Bell size={14} className="text-primary" />
-            <span className="font-semibold text-foreground text-sm">Game Rules</span>
-          </div>
-          {showRules ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
+    <div className="min-h-screen dink-orange-field text-white overflow-hidden flex flex-col">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between relative z-10">
+        <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-white/18 backdrop-blur flex items-center justify-center">
+          <ArrowLeft size={18} />
         </button>
-        {showRules && (
-          <div className="bg-muted/50 rounded-2xl p-4 border border-border animate-slide-up space-y-2.5">
-            {RULES.map((rule, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-[10px] font-bold text-primary">{i + 1}</span>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{rule}</p>
+        <div className="flex items-center gap-2 rounded-full bg-white/16 px-3 py-2 backdrop-blur">
+          <Users size={16} />
+          <span className="font-black">{playerCount.toLocaleString()}</span>
+        </div>
+      </div>
+
+      <section className="relative z-10 px-5 pt-4 text-center flex-shrink-0">
+        <p className="font-amharic text-2xl font-bold leading-relaxed drop-shadow-sm min-h-[4.5rem] flex items-center justify-center">
+          {activeNotice}
+        </p>
+        <img
+          src="/brand/dink-mascot.png"
+          alt=""
+          className="w-52 h-52 object-contain mx-auto animate-float"
+        />
+        <h1 className="font-black text-xl text-white">{currentGame?.title || 'Dink Game'}</h1>
+        <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-white/18 px-3 py-2 backdrop-blur">
+          <ShieldCheck size={14} />
+          <span className="text-xs font-bold">{currentGame?.is_paid ? `Entry paid · ${currentGame.entry_fee} ETB` : 'Free game'}</span>
+        </div>
+      </section>
+
+      <section className="relative z-10 mt-auto px-4 pb-4">
+        <div className="rounded-[1.5rem] bg-white/10 border border-white/20 backdrop-blur p-3 h-56 flex flex-col">
+          <div className="flex items-center gap-2 mb-2 text-white/85">
+            <MessageCircle size={15} />
+            <span className="text-xs font-black tracking-widest">LIVE CHAT</span>
+          </div>
+          <div className="flex-1 overflow-y-auto no-scrollbar space-y-1.5 pr-1">
+            {messages.map((msg) => (
+              <div key={msg.id} className={`text-sm leading-snug ${msg.is_system ? 'text-white/75 font-amharic' : 'text-white'}`}>
+                <span className="font-black text-white/70">{msg.username || 'Player'} </span>
+                <span>{msg.message}</span>
               </div>
             ))}
+            <div ref={chatEndRef} />
           </div>
-        )}
-      </div>
+          <form onSubmit={sendMessage} className="mt-3 flex gap-2">
+            <input
+              value={chatText}
+              onChange={e => setChatText(e.target.value)}
+              maxLength={120}
+              className="min-w-0 flex-1 rounded-full bg-white/92 text-primary px-4 py-3 text-sm font-semibold outline-none"
+              placeholder="Type message"
+            />
+            <button className="w-12 h-12 rounded-full bg-white text-primary flex items-center justify-center active:scale-95 transition-transform">
+              <Send size={18} />
+            </button>
+          </form>
+        </div>
+      </section>
     </div>
   );
 }

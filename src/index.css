@@ -139,6 +139,18 @@
     background: linear-gradient(160deg, hsl(var(--gold) / 0.12) 0%, hsl(var(--primary) / 0.04) 100%);
   }
 
+  .dink-orange-field {
+    background:
+      radial-gradient(circle at 50% 8%, hsl(44 100% 57% / 0.95), transparent 28rem),
+      linear-gradient(180deg, #f3b200 0%, #f7942f 42%, #f46f22 100%);
+  }
+
+  .dink-answer-card {
+    background: hsl(42 100% 98% / 0.96);
+    border: 2px solid hsl(39 100% 64% / 0.5);
+    box-shadow: 0 18px 45px rgba(0, 20, 81, 0.16);
+  }
+
   .navy-dark { background-color: hsl(var(--navy-dark)); }
   .navy-mid { background-color: hsl(var(--navy-mid)); }
 

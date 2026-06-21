@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Star, Zap, Trophy, Calendar } from 'lucide-react';
+import { BookOpen, ShieldCheck, Users, Wallet, Trophy, Clock3 } from 'lucide-react';
 import DinkLogo from '@/components/DinkLogo';
 import CountdownTimer from '@/components/CountdownTimer';
 import BottomNav from '@/components/BottomNav';
@@ -9,180 +9,204 @@ import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
 import PullToRefresh from '@/components/PullToRefresh';
 
+const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
+
 export default function Home() {
-  const { currentUser, currentGame, gameStatus, nextGame, loadNextGame, loadActiveGame } = useGame();
-  const [jackpot, setJackpot] = useState(null);
+  const { currentUser, currentGame, gameStatus, nextGame, loadNextGame, loadActiveGame, setCurrentUser } = useGame();
   const [loading, setLoading] = useState(true);
+  const [players, setPlayers] = useState([]);
+  const [joining, setJoining] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const init = async () => {
-      setLoading(true);
-      await Promise.all([loadNextGame(), loadActiveGame()]);
-      try {
-        const jackpots = await appClient.entities.Jackpot.filter({ is_active: true }, '-created_date', 1);
-        if (jackpots.length > 0) setJackpot(jackpots[0]);
-      } catch (e) {}
-      setLoading(false);
-    };
-    init();
-    const interval = setInterval(loadActiveGame, 8000);
-    return () => clearInterval(interval);
-  }, []);
+  const displayGame = currentGame || nextGame;
+  const gameActive = gameStatus === 'lobby' || gameStatus === 'live';
+  const prizePool = Number(displayGame?.prize_amount || 0);
+  const entryFee = Number(displayGame?.entry_fee || 0);
+  const isPaid = Boolean(displayGame?.is_paid && entryFee > 0);
+  const walletBalance = Number(currentUser?.wallet_balance || 0);
+  const activePlayerCount = players.filter(p => !p.is_disqualified && !p.is_eliminated && p.status !== 'disconnected').length;
 
-  const handleJoinGame = async () => {
-    if (!gameActive) return;
-    // Check if game is paid — if so, verify deposit first
-    const g = currentGame || nextGame;
-    if (g?.is_paid && currentUser) {
-      const existing = await appClient.entities.Deposit.filter({ user_id: currentUser.id, game_id: g.id, status: 'paid' }, '-created_date', 1).catch(() => []);
-      if (existing.length === 0) { navigate('/deposit'); return; }
+  const load = async () => {
+    setLoading(true);
+    await Promise.all([loadNextGame(), loadActiveGame()]);
+    const game = currentGame || nextGame;
+    if (game?.id) {
+      const gamePlayers = await appClient.entities.GamePlayer.filter({ game_id: game.id }, '-created_date', 200).catch(() => []);
+      setPlayers(gamePlayers);
     }
-    if (gameStatus === 'lobby') navigate('/lobby');
-    else if (gameStatus === 'live') navigate('/game');
+    setLoading(false);
   };
 
-  const gameActive = gameStatus === 'lobby' || gameStatus === 'live';
-  const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
-  const displayGame = currentGame || nextGame;
+  useEffect(() => {
+    load();
+    const interval = setInterval(() => {
+      loadActiveGame();
+      if (displayGame?.id) {
+        appClient.entities.GamePlayer.filter({ game_id: displayGame.id }, '-created_date', 200)
+          .then(setPlayers)
+          .catch(() => {});
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [displayGame?.id]);
 
-  const handleRefresh = async () => {
-    await Promise.all([loadNextGame(), loadActiveGame()]);
+  const ensurePaidEntry = async (game) => {
+    if (!isPaid || !currentUser) return true;
+    const existing = await appClient.entities.Deposit.filter({ user_id: currentUser.id, game_id: game.id, status: 'paid', purpose: 'game_entry' }, '-created_date', 1).catch(() => []);
+    if (existing.length > 0) return true;
+
+    if (walletBalance < entryFee) {
+      navigate(`/deposit?amount=${entryFee}&game=${game.id}`);
+      return false;
+    }
+
+    const updatedUser = await appClient.entities.User.update(currentUser.id, {
+      wallet_balance: walletBalance - entryFee,
+    });
+    await appClient.entities.Deposit.create({
+      user_id: currentUser.id,
+      game_id: game.id,
+      amount: entryFee,
+      status: 'paid',
+      provider: 'wallet',
+      purpose: 'game_entry',
+      verified_at: new Date().toISOString(),
+    });
+    await appClient.entities.WalletTransaction.create({
+      user_id: currentUser.id,
+      game_id: game.id,
+      amount: entryFee,
+      type: 'debit',
+      status: 'posted',
+      source: 'game_entry',
+      note: `${game.title} entry fee`,
+    });
+    setCurrentUser(updatedUser);
+    return true;
+  };
+
+  const handleJoinGame = async () => {
+    if (!displayGame || !gameActive || joining) return;
+    setJoining(true);
+    const paid = await ensurePaidEntry(displayGame).catch(() => false);
+    setJoining(false);
+    if (!paid) return;
+    if (gameStatus === 'live') navigate('/game');
+    else navigate('/lobby');
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20 flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      {/* Header */}
-      <div className="px-4 pt-8 pb-4 bg-card border-b border-border">
-        <div className="flex items-center justify-between mb-3">
-          <DinkLogo size="md" />
-          <Link to="/profile" className="w-10 h-10 rounded-full bg-muted border border-border flex items-center justify-center overflow-hidden">
-            {currentUser?.photo_url
-              ? <img src={currentUser.photo_url} className="w-10 h-10 rounded-full object-cover" alt="" />
-              : <span className="text-sm font-bold text-foreground">{(currentUser?.full_name || 'U')[0]?.toUpperCase()}</span>}
-          </Link>
+    <div className="min-h-screen bg-background pb-28" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="px-4 pt-3 pb-3 bg-card border-b border-border">
+        <div className="flex items-center justify-between gap-3">
+          <DinkLogo size="sm" />
+          <div className="flex items-center gap-2">
+            <Link to="/deposit" className="h-9 px-3 rounded-full bg-primary text-white flex items-center gap-2">
+              <Wallet size={15} />
+              <span className="font-black text-xs">{fmt(walletBalance)}</span>
+            </Link>
+            <Link to="/profile" className="w-9 h-9 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center overflow-hidden">
+              {currentUser?.photo_url
+                ? <img src={currentUser.photo_url} className="w-full h-full object-cover" alt="" />
+                : <span className="text-xs font-black text-primary">{(currentUser?.full_name || 'P')[0]?.toUpperCase()}</span>}
+            </Link>
+          </div>
         </div>
-        {currentUser && (
-          <p className="text-muted-foreground text-sm">
-            Hey, <span className="text-foreground font-semibold">{currentUser.full_name || 'Player'}</span>
-          </p>
-        )}
       </div>
 
-      <PullToRefresh onRefresh={handleRefresh}>
-      <div className="px-4 pt-4 space-y-3">
-        {loading ? (
-          <><GameCardSkeleton /><GameCardSkeleton /></>
-        ) : (
-          <>
-            {/* Game status card */}
-            <div className="bg-card rounded-2xl p-5 border border-border shadow-sm">
-              {gameStatus === 'live' ? (
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <div className="w-2 h-2 rounded-full bg-correct-green animate-live-pulse" />
-                    <span className="font-game text-correct-green font-bold text-sm tracking-wider">LIVE NOW</span>
+      <PullToRefresh onRefresh={load}>
+        <div className="px-4 pt-4 space-y-3">
+          {loading ? (
+            <><GameCardSkeleton /><GameCardSkeleton /></>
+          ) : (
+            <>
+              <section className="rounded-[1.75rem] bg-card border border-border overflow-hidden shadow-sm">
+                <div className="p-4 pb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${gameStatus === 'live' ? 'bg-correct-green' : gameStatus === 'lobby' ? 'bg-gold' : 'bg-muted-foreground/30'} animate-live-pulse`} />
+                      <span className="text-[11px] font-black tracking-widest text-primary">
+                        {gameStatus === 'live' ? 'LIVE GAME' : gameStatus === 'lobby' ? 'WAITING ROOM' : 'NEXT GAME'}
+                      </span>
+                    </div>
+                    <h1 className="text-2xl font-black text-foreground leading-tight">{displayGame?.title || 'No game scheduled'}</h1>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {isPaid ? `${fmt(entryFee)} to join` : 'Free to play'}
+                      {prizePool > 0 ? ` - ${fmt(prizePool)} prize pool` : ''}
+                    </p>
                   </div>
-                  <p className="text-foreground font-bold text-base">{currentGame?.title}</p>
-                  <p className="text-muted-foreground text-sm mt-1">{currentGame?.total_players?.toLocaleString() || 0} players in game</p>
+                  <img src="/brand/dink-mascot.png" alt="" className="w-20 h-20 object-contain flex-shrink-0" />
                 </div>
-              ) : gameStatus === 'lobby' ? (
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <div className="w-2 h-2 rounded-full bg-primary animate-live-pulse" />
-                    <span className="font-game text-primary font-bold text-sm tracking-wider">LOBBY OPEN</span>
+
+                {displayGame?.scheduled_at && gameStatus !== 'lobby' && gameStatus !== 'live' && (
+                  <div className="px-4 pb-4">
+                    <CountdownTimer targetDate={displayGame.scheduled_at} onEnd={loadActiveGame} />
                   </div>
-                  <p className="text-foreground font-bold">{currentGame?.title || 'Game Starting Soon'}</p>
-                  <p className="text-muted-foreground text-sm mt-1">{currentGame?.total_players?.toLocaleString() || 0} players waiting</p>
+                )}
+
+                <div className="grid grid-cols-3 border-t border-border">
+                  <div className="p-3 text-center">
+                    <Users size={16} className="mx-auto text-primary mb-1" />
+                    <p className="text-lg font-black text-foreground">{activePlayerCount}</p>
+                    <p className="text-[10px] text-muted-foreground font-bold">Players</p>
+                  </div>
+                  <div className="p-3 text-center border-x border-border">
+                    <Trophy size={16} className="mx-auto text-gold mb-1" />
+                    <p className="text-lg font-black text-foreground">{fmt(prizePool)}</p>
+                    <p className="text-[10px] text-muted-foreground font-bold">Prize</p>
+                  </div>
+                  <div className="p-3 text-center">
+                    <ShieldCheck size={16} className="mx-auto text-primary mb-1" />
+                    <p className="text-lg font-black text-foreground">{displayGame?.question_timer || 10}s</p>
+                    <p className="text-[10px] text-muted-foreground font-bold">Timer</p>
+                  </div>
                 </div>
-              ) : nextGame?.scheduled_at ? (
-                <div className="text-center">
-                  <p className="text-muted-foreground text-xs font-semibold tracking-widest mb-1">NEXT GAME</p>
-                  <p className="text-foreground font-semibold text-sm mb-3">{nextGame.title}</p>
-                  <CountdownTimer targetDate={nextGame.scheduled_at} onEnd={loadActiveGame} />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {new Date(nextGame.scheduled_at).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </section>
+
+              {prizePool > 0 && (
+                <section className="rounded-3xl bg-primary text-white p-4">
+                  <p className="text-xs font-black text-white/70 tracking-widest mb-2">TODAY'S PRIZE</p>
+                  <p className="text-3xl font-black">{fmt(prizePool)}</p>
+                  <p className="text-sm text-white/75 mt-1">
+                    All players still in the game at the end split the prize equally into their wallet.
                   </p>
-                </div>
-              ) : (
-                <div className="text-center py-2">
-                  <Calendar size={24} className="text-muted-foreground/30 mx-auto mb-2" />
-                  <p className="text-foreground font-semibold text-sm">No games scheduled</p>
-                  <p className="text-muted-foreground text-xs mt-1">Every Sunday at 9:00 PM (EAT)</p>
+                </section>
+              )}
+
+              {gameActive && (
+                <button
+                  onClick={handleJoinGame}
+                  disabled={joining}
+                  className="w-full h-14 rounded-full bg-gold text-primary font-black text-base active:scale-[0.98] transition-transform shadow-[0_12px_24px_hsl(var(--gold)/0.24)] disabled:opacity-60"
+                >
+                  {joining ? 'Checking wallet...' : gameStatus === 'live' ? 'Open Game' : isPaid ? `Join for ${fmt(entryFee)}` : 'Enter Waiting Room'}
+                </button>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <Link to="/rules" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
+                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                    <BookOpen size={16} className="text-primary" />
+                  </div>
+                  <span className="text-sm font-black text-foreground">Rules</span>
+                </Link>
+                <Link to="/winners" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
+                  <div className="w-9 h-9 rounded-full bg-gold/15 flex items-center justify-center">
+                    <Trophy size={16} className="text-gold" />
+                  </div>
+                  <span className="text-sm font-black text-foreground">Winners</span>
+                </Link>
+              </div>
+
+              {!displayGame && (
+                <div className="rounded-2xl bg-card border border-border p-4 flex gap-3">
+                  <Clock3 size={18} className="text-muted-foreground flex-shrink-0" />
+                  <p className="text-sm text-muted-foreground">Admin has not scheduled the next game yet.</p>
                 </div>
               )}
-            </div>
-
-            {/* Jackpot */}
-            {jackpot && (
-              <div className="bg-card rounded-2xl p-4 border border-gold/30 flex items-center justify-between shadow-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground font-semibold tracking-widest">JACKPOT</p>
-                  <p className="font-game text-2xl font-black text-gold">{fmt(jackpot.amount)}</p>
-                  <p className="text-xs text-muted-foreground">{jackpot.label || 'Weekly Jackpot'}</p>
-                </div>
-                <div className="w-12 h-12 rounded-2xl bg-gold/10 border border-gold/20 flex items-center justify-center">
-                  <Trophy size={22} className="text-gold" />
-                </div>
-              </div>
-            )}
-
-            {/* Prize */}
-            {displayGame && displayGame.prize_amount > 0 && (
-              <div className="bg-card rounded-2xl p-4 border border-border flex items-center justify-between shadow-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground font-semibold tracking-widest">TODAY'S PRIZE</p>
-                  <p className="font-game text-2xl font-black text-primary">{fmt(displayGame.prize_amount)}</p>
-                </div>
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <Zap size={22} className="text-primary" />
-                </div>
-              </div>
-            )}
-
-            {/* Join Button */}
-            {gameActive && (
-              <button onClick={handleJoinGame}
-                className={`w-full py-4 rounded-2xl font-game text-base font-black tracking-wider transition-all duration-200 active:scale-[0.98] shadow-lg ${
-                  gameStatus === 'live'
-                    ? 'bg-correct-green text-white glow-green'
-                    : 'gradient-purple-blue text-white glow-purple'
-                }`}>
-                {gameStatus === 'live' ? 'JOIN LIVE GAME' : 'ENTER LOBBY'}
-              </button>
-            )}
-
-            {/* Quick links */}
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { icon: BookOpen, label: 'Rules', path: '/rules', color: 'text-primary', bg: 'border-border' },
-                { icon: Star, label: 'Winners', path: '/winners', color: 'text-gold', bg: 'border-border' },
-              ].map(({ icon: Icon, label, path, color, bg }) => (
-                <Link key={label} to={path}
-                  className={`bg-card rounded-2xl p-3.5 flex items-center gap-2.5 border ${bg} active:scale-95 transition-transform shadow-sm`}>
-                  <Icon size={17} className={color} />
-                  <span className="text-sm font-semibold text-foreground">{label}</span>
-                </Link>
-              ))}
-            </div>
-
-            {/* Next game schedule */}
-            {!gameActive && (
-              <div className="bg-card rounded-2xl p-4 border border-border shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-muted border border-border flex items-center justify-center">
-                    <Calendar size={15} className="text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Every Sunday · 9:00 PM</p>
-                    <p className="text-xs text-muted-foreground">East Africa Time (EAT)</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+            </>
+          )}
+        </div>
       </PullToRefresh>
       <BottomNav />
     </div>

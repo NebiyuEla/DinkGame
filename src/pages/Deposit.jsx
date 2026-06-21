@@ -1,217 +1,244 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CreditCard, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, CheckCircle, CreditCard, Landmark, Wallet } from 'lucide-react';
 import DinkLogo from '@/components/DinkLogo';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
 
+const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
+
 export default function Deposit() {
   const navigate = useNavigate();
-  const { currentUser, currentGame, nextGame } = useGame();
+  const [searchParams] = useSearchParams();
+  const { currentUser, setCurrentUser, currentGame, nextGame } = useGame();
   const game = currentGame || nextGame;
-
+  const suggestedAmount = Number(searchParams.get('amount') || game?.entry_fee || 50);
+  const [amount, setAmount] = useState(suggestedAmount || 50);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [deposit, setDeposit] = useState(null);
-  const [checking, setChecking] = useState(false);
-  const [existingDeposit, setExistingDeposit] = useState(null);
+  const [withdrawAmount, setWithdrawAmount] = useState(100);
+  const [withdrawPhone, setWithdrawPhone] = useState('');
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
 
-  const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
+  const walletBalance = Number(currentUser?.wallet_balance || 0);
 
-  useEffect(() => {
-    if (!currentUser || !game) return;
-    // Check for existing paid deposit
-    appClient.entities.Deposit.filter({ user_id: currentUser.id, game_id: game.id, status: 'paid' }, '-created_date', 1)
-      .then(d => { if (d.length > 0) setExistingDeposit(d[0]); })
-      .catch(() => {});
-  }, [currentUser?.id, game?.id]);
+  const refresh = async () => {
+    if (!currentUser?.id) return;
+    const [users, txs] = await Promise.all([
+      appClient.entities.User.filter({ id: currentUser.id }, '-created_date', 1),
+      appClient.entities.WalletTransaction.filter({ user_id: currentUser.id }, '-created_date', 20),
+    ]);
+    if (users[0]) setCurrentUser(users[0]);
+    setTransactions(txs);
+  };
 
-  const handlePay = async (e) => {
+  useEffect(() => { refresh(); }, [currentUser?.id]);
+
+  const startDeposit = async (e) => {
     e.preventDefault();
-    if (!phone.trim()) { setError('Phone number is required'); return; }
-    if (!game) { setError('No active game found'); return; }
+    if (!currentUser?.id || amount <= 0) return;
     setLoading(true);
-    setError('');
-
+    setMessage('');
     try {
-      // Create a pending deposit record
-      const dep = await appClient.entities.Deposit.create({
+      const result = await appClient.payments.initializeChapa({
         user_id: currentUser.id,
-        game_id: game.id,
-        amount: game.entry_fee,
-        phone: phone.trim(),
-        email: email.trim() || `${currentUser.id}@dinkgame.et`,
-        status: 'pending',
-        chapa_tx_ref: `DINK-${currentUser.id.slice(-6)}-${Date.now()}`,
+        game_id: game?.id || '',
+        amount: Number(amount),
+        phone,
+        email: email || currentUser.email,
+        purpose: 'wallet',
+        return_url: `${window.location.origin}/deposit`,
+        callback_url: `${window.location.origin}/api/payments/chapa/webhook`,
       });
-
-      // Build Chapa checkout URL (redirect-based)
-      // In production, this would call a backend function to create the Chapa transaction
-      // For now we construct the standard Chapa hosted checkout URL
-      const chapaUrl = `https://checkout.chapa.co/checkout/payment?` + new URLSearchParams({
-        public_key: 'CHAPUBK_TEST-placeholder', // Replace with real key
-        amount: game.entry_fee,
-        currency: 'ETB',
-        tx_ref: dep.chapa_tx_ref,
-        first_name: currentUser.full_name?.split(' ')[0] || 'Player',
-        last_name: currentUser.full_name?.split(' ')[1] || '',
-        phone_number: phone.trim(),
-        email: email.trim() || `${currentUser.id}@dinkgame.et`,
-        title: `Dink Game Entry - ${game.title}`,
-        description: `Entry fee for ${game.title}`,
-        return_url: `${window.location.origin}/deposit-verify?tx=${dep.chapa_tx_ref}&dep=${dep.id}`,
-      });
-
-      await appClient.entities.Deposit.update(dep.id, { chapa_checkout_url: chapaUrl });
-      setDeposit(dep);
-
-      // Open Chapa checkout
-      window.open(chapaUrl, '_blank');
-    } catch (err) {
-      setError('Payment initiation failed. Please try again.');
+      setDeposit(result.deposit);
+      if (result.checkout_url) window.open(result.checkout_url, '_blank');
+      setMessage('Payment window opened. Come back and verify after paying.');
+    } catch (error) {
+      setMessage(error.message || 'Could not start payment');
     }
     setLoading(false);
   };
 
-  const checkPayment = async () => {
+  const verifyDeposit = async () => {
     if (!deposit) return;
-    setChecking(true);
+    setLoading(true);
+    setMessage('');
     try {
-      // Poll deposit status
-      const updated = await appClient.entities.Deposit.filter({ id: deposit.id }, '-created_date', 1);
-      if (updated.length > 0 && updated[0].status === 'paid') {
-        setExistingDeposit(updated[0]);
-      }
-    } catch (e) {}
-    setChecking(false);
+      const result = await appClient.payments.verifyChapa({ tx_ref: deposit.chapa_tx_ref, deposit_id: deposit.id });
+      setDeposit(result.deposit);
+      await refresh();
+      setMessage(result.paid ? 'Wallet updated.' : 'Payment is still pending.');
+    } catch (error) {
+      setMessage(error.message || 'Could not verify payment');
+    }
+    setLoading(false);
   };
 
-  if (!game) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-foreground font-semibold">No upcoming game found</p>
-          <button onClick={() => navigate('/')} className="mt-4 text-primary font-semibold text-sm">Back to Home</button>
-        </div>
-      </div>
-    );
-  }
+  const requestWithdrawal = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    const value = Number(withdrawAmount || 0);
+    if (value < 100) { setMessage('Minimum Telebirr withdrawal is 100 ETB.'); return; }
+    if (value > walletBalance) { setMessage('Wallet balance is not enough.'); return; }
+    if (!withdrawPhone.trim()) { setMessage('Telebirr phone is required.'); return; }
 
-  if (existingDeposit || !game.is_paid) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-correct-green/10 border border-correct-green/30 flex items-center justify-center mx-auto mb-4">
-            <CheckCircle size={28} className="text-correct-green" />
-          </div>
-          <h2 className="font-game text-xl font-black text-foreground mb-1">
-            {game.is_paid ? 'Entry Confirmed' : 'Free Game'}
-          </h2>
-          <p className="text-muted-foreground text-sm mb-6">
-            {game.is_paid ? `You're in for ${game.title}` : `${game.title} is free to enter`}
-          </p>
-          <button onClick={() => navigate('/lobby')}
-            className="gradient-purple-blue text-white font-game font-bold px-8 py-3 rounded-2xl">
-            Enter Lobby
-          </button>
-        </div>
-      </div>
-    );
-  }
+    setLoading(true);
+    try {
+      await appClient.entities.Withdrawal.create({
+        user_id: currentUser.id,
+        amount: value,
+        phone: withdrawPhone.trim(),
+        provider: 'telebirr',
+        status: 'pending',
+      });
+      const updated = await appClient.entities.User.update(currentUser.id, {
+        wallet_balance: walletBalance - value,
+      });
+      await appClient.entities.WalletTransaction.create({
+        user_id: currentUser.id,
+        amount: value,
+        type: 'debit',
+        status: 'pending',
+        source: 'telebirr_withdrawal',
+        note: `Telebirr withdrawal to ${withdrawPhone.trim()}`,
+      });
+      setCurrentUser(updated);
+      setMessage('Telebirr withdrawal request sent.');
+      await refresh();
+    } catch (error) {
+      setMessage(error.message || 'Withdrawal failed');
+    }
+    setLoading(false);
+  };
 
   return (
     <div className="min-h-screen bg-background pb-8">
-      <div className="px-4 pt-6 pb-4 bg-card border-b border-border">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center">
-            <ArrowLeft size={18} className="text-foreground" />
-          </button>
-          <DinkLogo size="sm" />
-        </div>
+      <div className="px-4 pt-4 pb-3 bg-card border-b border-border flex items-center justify-between">
+        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+          <ArrowLeft size={18} className="text-foreground" />
+        </button>
+        <DinkLogo size="sm" />
+        <div className="w-10" />
       </div>
 
-      <div className="px-4 pt-5 space-y-4">
-        {/* Game info */}
-        <div className="bg-card rounded-2xl p-4 border border-border shadow-sm">
-          <p className="text-xs text-muted-foreground font-semibold tracking-widest mb-1">ENTRY FEE</p>
-          <p className="font-game text-3xl font-black text-primary">{fmt(game.entry_fee)}</p>
-          <p className="text-sm text-muted-foreground mt-1">{game.title}</p>
-          <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Prize pool</span>
-            <span className="font-game text-gold font-bold text-sm">{fmt(game.prize_amount)}</span>
-          </div>
-        </div>
-
-        {/* Payment pending state */}
-        {deposit && (
-          <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 text-center">
-            <Clock size={28} className="text-amber-600 mx-auto mb-2" />
-            <p className="font-semibold text-amber-700 text-sm">Payment window opened</p>
-            <p className="text-amber-600 text-xs mt-1 mb-3">Complete payment in the Chapa tab, then come back and verify</p>
-            <button onClick={checkPayment} disabled={checking}
-              className="bg-amber-600 text-white font-semibold px-6 py-2.5 rounded-xl text-sm w-full disabled:opacity-60">
-              {checking ? 'Checking...' : 'Verify Payment'}
-            </button>
-          </div>
-        )}
-
-        {/* Payment form */}
-        {!deposit && (
-          <form onSubmit={handlePay} className="bg-card rounded-2xl p-4 border border-border shadow-sm space-y-4">
-            <h2 className="font-game text-base font-black text-foreground">Pay with Chapa</h2>
-
+      <div className="px-4 pt-4 space-y-3">
+        <section className="rounded-[1.75rem] bg-primary text-white p-5">
+          <div className="flex items-center justify-between">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 tracking-widest">PHONE NUMBER</label>
-              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                placeholder="09xxxxxxxx"
-                className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm outline-none focus:border-primary" />
+              <p className="text-xs font-black text-white/65 tracking-widest">WALLET BALANCE</p>
+              <p className="text-4xl font-black mt-1">{fmt(walletBalance)}</p>
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 tracking-widest">EMAIL (OPTIONAL)</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm outline-none focus:border-primary" />
+            <div className="w-14 h-14 rounded-full bg-white/12 flex items-center justify-center">
+              <Wallet size={26} />
             </div>
-
-            {error && (
-              <div className="flex items-center gap-2 text-wrong-red text-sm">
-                <AlertCircle size={14} />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <button type="submit" disabled={loading}
-              className="w-full gradient-purple-blue text-white font-game font-bold py-3.5 rounded-xl tracking-wide disabled:opacity-60 flex items-center justify-center gap-2">
-              <CreditCard size={16} />
-              {loading ? 'Processing...' : `Pay ${fmt(game.entry_fee)}`}
-            </button>
-
-            <p className="text-xs text-muted-foreground text-center">
-              Powered by Chapa · Secure Ethiopian payment
+          </div>
+          {game?.is_paid && (
+            <p className="mt-4 text-sm text-white/75">
+              {game.title} entry: {fmt(game.entry_fee)}. Add funds first, then join from Home.
             </p>
-          </form>
+          )}
+        </section>
+
+        {message && (
+          <div className="rounded-2xl bg-card border border-border p-3 flex items-center gap-2">
+            <CheckCircle size={16} className="text-primary flex-shrink-0" />
+            <p className="text-sm font-semibold text-foreground">{message}</p>
+          </div>
         )}
 
-        {/* How it works */}
-        <div className="bg-card rounded-2xl p-4 border border-border shadow-sm space-y-2.5">
-          <p className="text-xs font-semibold text-muted-foreground tracking-widest">HOW IT WORKS</p>
-          {[
-            'Pay the entry fee using Chapa (Telebirr, CBE, bank card)',
-            'Your payment is verified automatically',
-            'Join the lobby once payment is confirmed',
-            'Win prizes and claim your earnings',
-          ].map((step, i) => (
-            <div key={i} className="flex items-start gap-2.5">
-              <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-[10px] font-bold text-primary">{i + 1}</span>
+        <form onSubmit={startDeposit} className="rounded-[1.5rem] bg-card border border-border p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-gold/15 flex items-center justify-center">
+              <CreditCard size={18} className="text-gold" />
+            </div>
+            <div>
+              <h2 className="font-black text-foreground">Add money</h2>
+              <p className="text-xs text-muted-foreground">Secure checkout through Chapa</p>
+            </div>
+          </div>
+          <input
+            type="number"
+            min="1"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-lg font-black text-foreground outline-none focus:border-primary"
+            placeholder="Amount"
+          />
+          <input
+            type="tel"
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
+            className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary"
+            placeholder="Telebirr / phone number"
+          />
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary"
+            placeholder="Email optional"
+          />
+          <button disabled={loading} className="w-full rounded-full bg-gold text-primary font-black py-4 active:scale-95 transition-transform disabled:opacity-60">
+            {loading ? 'Processing...' : `Pay ${fmt(amount)}`}
+          </button>
+          {deposit && (
+            <button type="button" onClick={verifyDeposit} disabled={loading} className="w-full rounded-full bg-primary text-white font-black py-4 active:scale-95 transition-transform disabled:opacity-60">
+              Verify Payment
+            </button>
+          )}
+        </form>
+
+        <form onSubmit={requestWithdrawal} className="rounded-[1.5rem] bg-card border border-border p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Landmark size={18} className="text-primary" />
+            </div>
+            <div>
+              <h2 className="font-black text-foreground">Withdraw to Telebirr</h2>
+              <p className="text-xs text-muted-foreground">Minimum withdrawal is 100 ETB</p>
+            </div>
+          </div>
+          <input
+            type="number"
+            min="100"
+            value={withdrawAmount}
+            onChange={e => setWithdrawAmount(e.target.value)}
+            className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-lg font-black text-foreground outline-none focus:border-primary"
+            placeholder="Amount"
+          />
+          <input
+            type="tel"
+            value={withdrawPhone}
+            onChange={e => setWithdrawPhone(e.target.value)}
+            className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary"
+            placeholder="Telebirr phone"
+          />
+          <button disabled={loading || walletBalance < 100} className="w-full rounded-full bg-primary text-white font-black py-4 active:scale-95 transition-transform disabled:opacity-50">
+            Request Withdrawal
+          </button>
+        </form>
+
+        <section className="rounded-[1.5rem] bg-card border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-sm font-black text-foreground">Wallet history</p>
+          </div>
+          {transactions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No wallet activity yet</p>
+          ) : transactions.map(tx => (
+            <div key={tx.id} className="px-4 py-3 border-b border-border last:border-0 flex justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-foreground">{tx.note || tx.source}</p>
+                <p className="text-xs text-muted-foreground">{new Date(tx.created_date).toLocaleString()}</p>
               </div>
-              <p className="text-sm text-muted-foreground">{step}</p>
+              <p className={`text-sm font-black ${tx.type === 'debit' ? 'text-wrong-red' : 'text-correct-green'}`}>
+                {tx.type === 'debit' ? '-' : '+'}{fmt(tx.amount)}
+              </p>
             </div>
           ))}
-        </div>
+        </section>
       </div>
     </div>
   );

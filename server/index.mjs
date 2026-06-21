@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -18,11 +19,13 @@ const ENTITY_NAMES = [
   'GamePlayer',
   'Answer',
   'Setting',
-  'PrizeClaim',
-  'Jackpot',
   'Deposit',
   'Broadcast',
   'AntiCheatLog',
+  'WalletTransaction',
+  'Withdrawal',
+  'ChatMessage',
+  'GameBan',
 ];
 
 const nowIso = () => new Date().toISOString();
@@ -43,6 +46,10 @@ const seedState = () => {
       email: 'player@dink.local',
       telegram_id: 'local-telegram-user',
       total_winnings: 0,
+      wallet_balance: 0,
+      telegram_linked: false,
+      telegram_username: '',
+      photo_url: '',
       games_played: 0,
       best_rank: null,
       is_banned: false,
@@ -70,7 +77,8 @@ const seedState = () => {
       scheduled_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       status: 'lobby',
       prize_amount: 5000,
-      jackpot_amount: 1500,
+      platform_fee_percent: 25,
+      auto_prize_enabled: true,
       max_players: 10000,
       total_questions: 3,
       question_timer: 15,
@@ -85,6 +93,8 @@ const seedState = () => {
       ended_at: null,
       is_paid: false,
       entry_fee: 0,
+      min_answers: 3,
+      max_answers: 4,
       created_date: created,
       updated_date: created,
     }],
@@ -99,7 +109,6 @@ const seedState = () => {
           { label: 'A', text: 'Addis Ababa' },
           { label: 'B', text: 'Hawassa' },
           { label: 'C', text: 'Bahir Dar' },
-          { label: 'D', text: 'Dire Dawa' },
         ],
         correct_option: 'A',
         category: 'General',
@@ -120,7 +129,6 @@ const seedState = () => {
           { label: 'A', text: 'All players' },
           { label: 'B', text: 'Only correct players' },
           { label: 'C', text: 'Only late joiners' },
-          { label: 'D', text: 'Nobody' },
         ],
         correct_option: 'B',
         category: 'Rules',
@@ -141,7 +149,6 @@ const seedState = () => {
           { label: 'A', text: 'Immediately after tapping' },
           { label: 'B', text: 'After admin reveal' },
           { label: 'C', text: 'After leaving the app' },
-          { label: 'D', text: 'Never' },
         ],
         correct_option: 'B',
         category: 'Rules',
@@ -156,21 +163,22 @@ const seedState = () => {
     GamePlayer: [],
     Answer: [],
     Setting: [],
-    PrizeClaim: [],
-    Jackpot: [{
-      id: 'jackpot_default',
-      game_id: gameId,
-      amount: 1500,
-      is_active: true,
-      winner_user_id: null,
-      won_at: null,
-      label: 'Weekly Jackpot',
-      created_date: created,
-      updated_date: created,
-    }],
     Deposit: [],
     Broadcast: [],
     AntiCheatLog: [],
+    WalletTransaction: [],
+    Withdrawal: [],
+    ChatMessage: [{
+      id: 'chat_seed_1',
+      game_id: gameId,
+      user_id: 'system',
+      username: 'Dink Game',
+      message: 'ጨዋታው ሊጀምር ነው',
+      is_system: true,
+      created_date: created,
+      updated_date: created,
+    }],
+    GameBan: [],
   };
 };
 
@@ -179,7 +187,7 @@ const ensureShape = (state) => {
   const seeded = seedState();
   ENTITY_NAMES.forEach((name) => {
     if (!Array.isArray(next[name])) next[name] = [];
-    if (next[name].length === 0 && ['User', 'AdminUser', 'Game', 'Question', 'Jackpot'].includes(name)) {
+    if (next[name].length === 0 && ['User', 'AdminUser', 'Game', 'Question'].includes(name)) {
       next[name].push(...seeded[name]);
     }
   });
@@ -214,7 +222,8 @@ const applyDefaults = (entityName, data) => {
     Game: {
       status: 'draft',
       prize_amount: 0,
-      jackpot_amount: 0,
+      platform_fee_percent: 25,
+      auto_prize_enabled: true,
       max_players: 10000,
       total_questions: 15,
       question_timer: 10,
@@ -227,18 +236,85 @@ const applyDefaults = (entityName, data) => {
       total_players: 0,
       is_paid: false,
       entry_fee: 0,
+      min_answers: 3,
+      max_answers: 4,
     },
     Question: { image_url: '', explanation: '', category: '', difficulty: 'medium', time_limit: 10, order_index: 0, is_active: true },
-    GamePlayer: { total_score: 0, total_response_time_ms: 0, rank: null, questions_answered: 0, correct_answers: 0, is_disqualified: false, is_eliminated: false, disqualify_reason: '', joined_at: nowIso(), status: 'lobby' },
+    GamePlayer: { total_score: 0, total_response_time_ms: 0, rank: null, questions_answered: 0, correct_answers: 0, is_disqualified: false, is_eliminated: false, disqualify_reason: '', warning_count: 0, wallet_credit: 0, prize_share: 0, joined_at: nowIso(), status: 'lobby' },
     Answer: { is_correct: null, points_earned: 0, speed_bonus: 0, is_scored: false, submitted_at: nowIso() },
     AdminUser: { role: 'viewer', is_active: true },
-    Jackpot: { amount: 0, is_active: true, label: 'Weekly Jackpot' },
     Broadcast: { target: 'all', status: 'sent', recipient_count: 0, sent_at: nowIso() },
-    PrizeClaim: { status: 'pending' },
-    Deposit: { amount: 0, status: 'pending' },
-    AntiCheatLog: { severity: 'low' },
+    Deposit: { amount: 0, status: 'pending', provider: 'chapa', purpose: 'wallet', currency: 'ETB' },
+    AntiCheatLog: { severity: 'low', action_taken: '' },
+    WalletTransaction: { amount: 0, type: 'credit', status: 'posted', source: 'manual', currency: 'ETB' },
+    Withdrawal: { amount: 0, status: 'pending', provider: 'telebirr', currency: 'ETB' },
+    ChatMessage: { message: '', is_system: false },
+    GameBan: { reason: '', is_active: true, created_at: nowIso() },
   };
   return { ...(defaults[entityName] || {}), ...data };
+};
+
+const calculateGameFinancials = (game, deposits = []) => {
+  const paidDeposits = deposits.filter((deposit) => deposit.game_id === game.id && deposit.status === 'paid');
+  const gross = paidDeposits.reduce((sum, deposit) => sum + Number(deposit.amount || 0), 0);
+  const platformFeePercent = Number(game.platform_fee_percent ?? 25);
+  const platformProfit = Math.round(gross * platformFeePercent / 100);
+  const autoPool = Math.max(0, gross - platformProfit);
+  const manualPool = Number(game.prize_amount || 0);
+  const prizePool = Number(game.auto_prize_enabled ?? true) ? (manualPool || autoPool) : manualPool;
+
+  return {
+    gross,
+    platformFeePercent,
+    platformProfit,
+    prizePool,
+    paidCount: paidDeposits.length,
+  };
+};
+
+const creditWinnerWallets = async (state, game) => {
+  const activeWinners = state.GamePlayer.filter((player) => (
+    player.game_id === game.id &&
+    !player.is_disqualified &&
+    !player.is_eliminated &&
+    ['playing', 'lobby', 'finished'].includes(player.status || 'playing')
+  ));
+
+  const financials = calculateGameFinancials(game, state.Deposit);
+  const share = activeWinners.length > 0 ? Math.floor(financials.prizePool / activeWinners.length) : 0;
+  const creditedAt = nowIso();
+
+  activeWinners.forEach((player) => {
+    if (player.wallet_credit && player.wallet_credit > 0) return;
+    player.status = 'winner';
+    player.prize_share = share;
+    player.wallet_credit = share;
+    player.updated_date = creditedAt;
+
+    const user = state.User.find((item) => item.id === player.user_id);
+    if (user) {
+      user.wallet_balance = Number(user.wallet_balance || 0) + share;
+      user.total_winnings = Number(user.total_winnings || 0) + share;
+      user.games_played = Number(user.games_played || 0) + 1;
+      user.updated_date = creditedAt;
+    }
+
+    state.WalletTransaction.push({
+      id: createId('wallet'),
+      user_id: player.user_id,
+      game_id: game.id,
+      amount: share,
+      type: 'credit',
+      status: 'posted',
+      source: 'game_prize',
+      currency: 'ETB',
+      note: `${game.title} winner share`,
+      created_date: creditedAt,
+      updated_date: creditedAt,
+    });
+  });
+
+  return { winners: activeWinners, share, financials };
 };
 
 const matchesQueryValue = (actual, expected) => {
@@ -278,6 +354,12 @@ const readJsonBody = async (req) => {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 };
 
+const readTextBody = async (req) => {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return Buffer.concat(chunks).toString('utf8');
+};
+
 const sendJson = (res, statusCode, data) => {
   res.writeHead(statusCode, {
     'content-type': 'application/json; charset=utf-8',
@@ -303,7 +385,11 @@ const getOrCreateUser = async (profile = {}, userId) => {
       username: profile.username || profile.email?.split('@')[0] || 'player',
       email: profile.email || `${createId('player')}@dink.local`,
       telegram_id: profile.telegram_id || '',
+      telegram_linked: Boolean(profile.telegram_id),
+      telegram_username: profile.telegram_username || profile.username || '',
+      photo_url: profile.photo_url || '',
       total_winnings: 0,
+      wallet_balance: 0,
       games_played: 0,
       best_rank: null,
       is_banned: false,
@@ -315,6 +401,15 @@ const getOrCreateUser = async (profile = {}, userId) => {
     };
     state.User.push(user);
   } else {
+    Object.assign(user, {
+      full_name: profile.full_name || user.full_name,
+      username: profile.username || user.username,
+      email: profile.email || user.email,
+      telegram_id: profile.telegram_id || user.telegram_id,
+      telegram_linked: profile.telegram_id ? true : user.telegram_linked,
+      telegram_username: profile.telegram_username || user.telegram_username,
+      photo_url: profile.photo_url || user.photo_url,
+    });
     user.last_seen = nowIso();
     user.updated_date = nowIso();
   }
@@ -354,6 +449,11 @@ const handleEntityApi = async (req, res, pathname) => {
       created_date: data.created_date || created,
       updated_date: created,
     };
+    if (entityName === 'Question') {
+      record.options = (record.options || []).slice(0, 4);
+      if (record.options.length < 3 || record.options.length > 4) return sendError(res, 400, 'Questions must have 3 or 4 answers');
+    }
+    if (entityName === 'Withdrawal' && Number(record.amount || 0) < 100) return sendError(res, 400, 'Minimum Telebirr withdrawal is 100 ETB');
     state[entityName].push(record);
     await writeState(state);
     return sendJson(res, 201, clone(record));
@@ -365,6 +465,13 @@ const handleEntityApi = async (req, res, pathname) => {
     const index = state[entityName].findIndex((record) => record.id === id);
     if (index === -1) return sendError(res, 404, `${entityName} not found`);
     state[entityName][index] = { ...state[entityName][index], ...data, id, updated_date: nowIso() };
+    if (entityName === 'Question') {
+      state[entityName][index].options = (state[entityName][index].options || []).slice(0, 4);
+      if (state[entityName][index].options.length < 3 || state[entityName][index].options.length > 4) return sendError(res, 400, 'Questions must have 3 or 4 answers');
+    }
+    if (entityName === 'Game' && state[entityName][index].status === 'ended') {
+      await creditWinnerWallets(state, state[entityName][index]);
+    }
     await writeState(state);
     return sendJson(res, 200, clone(state[entityName][index]));
   }
@@ -376,6 +483,140 @@ const handleEntityApi = async (req, res, pathname) => {
   }
 
   return sendError(res, 405, 'Unsupported entity operation');
+};
+
+const handlePaymentApi = async (req, res, pathname) => {
+  if (req.method === 'POST' && pathname === '/api/payments/chapa/initialize') {
+    const body = await readJsonBody(req);
+    const state = await readState();
+    const created = nowIso();
+    const amount = Number(body.amount || 0);
+    if (amount <= 0) return sendError(res, 400, 'Amount must be greater than 0');
+
+    const txRef = body.tx_ref || `DINK-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const deposit = {
+      ...applyDefaults('Deposit', {
+        user_id: body.user_id,
+        game_id: body.game_id || '',
+        amount,
+        phone: body.phone || '',
+        email: body.email || '',
+        status: 'pending',
+        provider: 'chapa',
+        purpose: body.purpose || 'wallet',
+        chapa_tx_ref: txRef,
+      }),
+      id: createId('deposit'),
+      created_date: created,
+      updated_date: created,
+    };
+
+    let checkoutUrl = `${body.return_url || ''}?tx_ref=${encodeURIComponent(txRef)}&demo=1`;
+    if (process.env.CHAPA_SECRET_KEY) {
+      const response = await fetch('https://api.chapa.co/v1/transaction/initialize', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: String(amount),
+          currency: 'ETB',
+          email: body.email || `${body.user_id || 'player'}@dinkgame.et`,
+          first_name: body.first_name || 'Dink',
+          last_name: body.last_name || 'Player',
+          phone_number: body.phone || '',
+          tx_ref: txRef,
+          callback_url: body.callback_url,
+          return_url: body.return_url,
+          customization: { title: 'Dink Game Wallet', description: 'Wallet deposit for Dink Game' },
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.status !== 'success') return sendError(res, 502, payload.message || 'Chapa initialization failed');
+      checkoutUrl = payload.data?.checkout_url || checkoutUrl;
+      deposit.chapa_checkout_url = checkoutUrl;
+    } else {
+      deposit.chapa_checkout_url = checkoutUrl;
+      deposit.demo_checkout = true;
+    }
+
+    state.Deposit.push(deposit);
+    await writeState(state);
+    return sendJson(res, 201, { deposit, checkout_url: checkoutUrl });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/payments/chapa/verify') {
+    const body = await readJsonBody(req);
+    const txRef = body.tx_ref;
+    if (!txRef) return sendError(res, 400, 'tx_ref is required');
+    const state = await readState();
+    const deposit = state.Deposit.find((item) => item.chapa_tx_ref === txRef || item.id === body.deposit_id);
+    if (!deposit) return sendError(res, 404, 'Deposit not found');
+
+    let paid = !process.env.CHAPA_SECRET_KEY && body.demo_paid !== false;
+    if (process.env.CHAPA_SECRET_KEY) {
+      const response = await fetch(`https://api.chapa.co/v1/transaction/verify/${encodeURIComponent(txRef)}`, {
+        headers: { authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}` },
+      });
+      const payload = await response.json();
+      paid = response.ok && payload.status === 'success' && payload.data?.status === 'success';
+    }
+
+    if (paid && deposit.status !== 'paid') {
+      deposit.status = 'paid';
+      deposit.verified_at = nowIso();
+      deposit.updated_date = nowIso();
+      const user = state.User.find((item) => item.id === deposit.user_id);
+      if (user && deposit.purpose === 'wallet') {
+        user.wallet_balance = Number(user.wallet_balance || 0) + Number(deposit.amount || 0);
+        user.updated_date = nowIso();
+        state.WalletTransaction.push({
+          id: createId('wallet'),
+          user_id: deposit.user_id,
+          amount: Number(deposit.amount || 0),
+          type: 'credit',
+          status: 'posted',
+          source: 'chapa_deposit',
+          currency: 'ETB',
+          note: 'Chapa wallet deposit',
+          created_date: nowIso(),
+          updated_date: nowIso(),
+        });
+      }
+      await writeState(state);
+    }
+
+    return sendJson(res, 200, { deposit: clone(deposit), paid });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/payments/chapa/webhook') {
+    const raw = await readTextBody(req);
+    if (process.env.CHAPA_WEBHOOK_SECRET) {
+      const signature = req.headers['x-chapa-signature'] || req.headers['chapa-signature'];
+      const digest = crypto.createHmac('sha256', process.env.CHAPA_WEBHOOK_SECRET).update(raw).digest('hex');
+      if (signature !== digest) return sendError(res, 401, 'Invalid webhook signature');
+    }
+    const payload = raw ? JSON.parse(raw) : {};
+    const txRef = payload.tx_ref || payload.trx_ref || payload.data?.tx_ref;
+    if (!txRef) return sendJson(res, 200, { ok: true });
+    const state = await readState();
+    const deposit = state.Deposit.find((item) => item.chapa_tx_ref === txRef);
+    if (deposit && deposit.status !== 'paid') {
+      deposit.status = 'paid';
+      deposit.verified_at = nowIso();
+      deposit.updated_date = nowIso();
+      const user = state.User.find((item) => item.id === deposit.user_id);
+      if (user && deposit.purpose === 'wallet') {
+        user.wallet_balance = Number(user.wallet_balance || 0) + Number(deposit.amount || 0);
+        user.updated_date = nowIso();
+      }
+      await writeState(state);
+    }
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendError(res, 404, 'Unknown payment endpoint');
 };
 
 const handleAuthApi = async (req, res, pathname) => {
@@ -443,6 +684,7 @@ createServer(async (req, res) => {
     const pathname = url.pathname;
 
     if (pathname === '/api/health') return sendJson(res, 200, { ok: true });
+    if (pathname.startsWith('/api/payments/')) return await handlePaymentApi(req, res, pathname);
     if (pathname.startsWith('/api/entities/')) return await handleEntityApi(req, res, pathname);
     if (pathname.startsWith('/api/auth/')) return await handleAuthApi(req, res, pathname);
     return await serveStatic(req, res, pathname);

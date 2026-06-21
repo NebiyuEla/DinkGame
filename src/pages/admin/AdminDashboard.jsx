@@ -1,34 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Gamepad2, Gift, Shield, TrendingUp, Activity } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Activity, Banknote, Gamepad2, Shield, Users, Wallet } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { appClient } from '@/api/appClient';
 
-function StatCard({ icon: Icon, label, value, color, sub }) {
+function StatCard({ icon: Icon, label, value, sub, tone = 'primary' }) {
+  const tones = {
+    primary: 'bg-primary/15 border-primary/25 text-primary',
+    gold: 'bg-gold/15 border-gold/25 text-gold',
+    green: 'bg-correct-green/15 border-correct-green/25 text-correct-green',
+    red: 'bg-wrong-red/15 border-wrong-red/25 text-wrong-red',
+  };
   return (
     <div className="glass-card rounded-2xl p-4 border border-border/50">
-      <div className="flex items-center justify-between mb-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
-          <Icon size={18} className="text-white" />
-        </div>
-        <TrendingUp size={14} className="text-correct-green" />
+      <div className={`w-10 h-10 rounded-full border flex items-center justify-center mb-3 ${tones[tone] || tones.primary}`}>
+        <Icon size={18} />
       </div>
       <p className="font-game text-2xl font-black text-white">{value}</p>
-      <p className="text-xs text-muted-foreground mt-1">{label}</p>
-      {sub && <p className="text-xs text-neon-purple mt-0.5">{sub}</p>}
+      <p className="text-xs text-muted-foreground mt-1 font-bold">{label}</p>
+      {sub && <p className="text-xs text-gold mt-0.5">{sub}</p>}
     </div>
   );
 }
 
-const isLiveUser = (player, liveGameIds) => (
-  liveGameIds.has(player.game_id) &&
-  !player.is_disqualified &&
-  (player.status || 'playing') !== 'disconnected'
-);
+const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
+
+const activePlayer = (player) => !player.is_disqualified && !player.is_eliminated && (player.status || 'playing') !== 'disconnected';
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ users: 0, games: 0, claims: 0, suspicious: 0, paid: 0, liveUsers: 0 });
-  const [recentGames, setRecentGames] = useState([]);
-  const [recentClaims, setRecentClaims] = useState([]);
+  const [data, setData] = useState({
+    users: [],
+    games: [],
+    deposits: [],
+    withdrawals: [],
+    players: [],
+    logs: [],
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,28 +42,18 @@ export default function AdminDashboard() {
     const load = async () => {
       setLoading(true);
       try {
-        const [users, games, claims, suspicious, paid, players] = await Promise.all([
-          appClient.entities.User.list(),
-          appClient.entities.Game.list(),
-          appClient.entities.PrizeClaim.filter({ status: 'pending' }),
-          appClient.entities.AntiCheatLog.filter({ severity: 'high' }),
-          appClient.entities.PrizeClaim.filter({ status: 'paid' }),
-          appClient.entities.GamePlayer.list('-created_date', 1000),
+        const [users, games, deposits, withdrawals, players, logs] = await Promise.all([
+          appClient.entities.User.list('-created_date', 5000),
+          appClient.entities.Game.list('-created_date', 100),
+          appClient.entities.Deposit.list('-created_date', 5000),
+          appClient.entities.Withdrawal.list('-created_date', 500),
+          appClient.entities.GamePlayer.list('-created_date', 5000),
+          appClient.entities.AntiCheatLog.list('-created_date', 100),
         ]);
-        const liveGameIds = new Set(games.filter(g => ['lobby', 'live'].includes(g.status)).map(g => g.id));
-        if (!mounted) return;
-        setStats({
-          users: users.length,
-          games: games.length,
-          claims: claims.length,
-          suspicious: suspicious.length,
-          paid: paid.length,
-          liveUsers: players.filter(player => isLiveUser(player, liveGameIds)).length,
-        });
-        setRecentGames(games.slice(0, 5));
-        const allClaims = await appClient.entities.PrizeClaim.list('-created_date', 5);
-        if (mounted) setRecentClaims(allClaims);
-      } catch (e) {}
+        if (mounted) setData({ users, games, deposits, withdrawals, players, logs });
+      } catch {
+        if (mounted) setData({ users: [], games: [], deposits: [], withdrawals: [], players: [], logs: [] });
+      }
       if (mounted) setLoading(false);
     };
     load();
@@ -68,83 +64,112 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  const statusColors = { draft: 'text-muted-foreground', scheduled: 'text-electric-blue', lobby: 'text-neon-purple', live: 'text-correct-green', ended: 'text-muted-foreground' };
-  const claimColors = { pending: 'text-yellow-400', approved: 'text-electric-blue', paid: 'text-correct-green', rejected: 'text-wrong-red' };
+  const stats = useMemo(() => {
+    const liveGameIds = new Set(data.games.filter(game => ['lobby', 'live', 'paused'].includes(game.status)).map(game => game.id));
+    const paidDeposits = data.deposits.filter(deposit => deposit.status === 'paid');
+    const grossDeposits = paidDeposits.reduce((sum, deposit) => sum + Number(deposit.amount || 0), 0);
+    const platformProfit = Math.round(grossDeposits * 0.25);
+    const prizePool = Math.max(0, grossDeposits - platformProfit);
+    return {
+      registeredUsers: data.users.length,
+      depositedUsers: new Set(paidDeposits.map(deposit => deposit.user_id)).size,
+      liveUsers: data.players.filter(player => liveGameIds.has(player.game_id) && activePlayer(player)).length,
+      games: data.games.length,
+      grossDeposits,
+      platformProfit,
+      prizePool,
+      pendingWithdrawals: data.withdrawals.filter(item => item.status === 'pending').length,
+      highRisk: data.logs.filter(log => log.severity === 'high').length,
+    };
+  }, [data]);
+
+  const recentGames = data.games.slice(0, 5);
+  const recentDeposits = data.deposits.slice(0, 5);
+  const statusColor = {
+    draft: 'text-muted-foreground',
+    scheduled: 'text-electric-blue',
+    lobby: 'text-gold',
+    live: 'text-correct-green',
+    paused: 'text-yellow-400',
+    ended: 'text-muted-foreground',
+  };
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="font-game text-xl font-black text-white">Dashboard</h1>
-          <p className="text-muted-foreground text-sm">Overview of Dink Game platform</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs text-gold font-black tracking-widest">SECURE OPERATOR PANEL</p>
+            <h1 className="font-game text-2xl font-black text-white mt-1">Dashboard</h1>
+            <p className="text-muted-foreground text-sm">Live game, wallet, payout, and security overview.</p>
+          </div>
+          <a href="/admin/live" className="hidden sm:flex items-center gap-2 bg-primary text-white font-black px-4 py-2.5 rounded-full text-sm">
+            <Activity size={15} />
+            Live Controller
+          </a>
         </div>
 
-        {/* Stats grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <StatCard icon={Users} label="Total Users" value={stats.users.toLocaleString()} color="bg-electric-blue" />
-          <StatCard icon={Activity} label="Live Users" value={stats.liveUsers.toLocaleString()} color="bg-correct-green" sub="Lobby and game" />
-          <StatCard icon={Gamepad2} label="Total Games" value={stats.games} color="bg-neon-purple" />
-          <StatCard icon={Gift} label="Pending Claims" value={stats.claims} color="bg-yellow-500" sub="Needs review" />
-          <StatCard icon={Shield} label="Suspicious Events" value={stats.suspicious} color="bg-wrong-red" />
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          <StatCard icon={Activity} label="Live Playing Users" value={stats.liveUsers.toLocaleString()} sub="Can still answer" tone="green" />
+          <StatCard icon={Users} label="Registered Users" value={stats.registeredUsers.toLocaleString()} />
+          <StatCard icon={Wallet} label="Deposited Users" value={stats.depositedUsers.toLocaleString()} sub={fmt(stats.grossDeposits)} tone="gold" />
+          <StatCard icon={Banknote} label="Platform Profit" value={fmt(stats.platformProfit)} sub="25% default" tone="green" />
+          <StatCard icon={Banknote} label="Prize Pool" value={fmt(stats.prizePool)} sub="After platform fee" tone="gold" />
+          <StatCard icon={Wallet} label="Pending Withdrawals" value={stats.pendingWithdrawals.toLocaleString()} />
+          <StatCard icon={Shield} label="High Risk Events" value={stats.highRisk.toLocaleString()} tone="red" />
+          <StatCard icon={Gamepad2} label="Total Games" value={stats.games.toLocaleString()} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Recent Games */}
-          <div className="glass-card rounded-2xl border border-border/50">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <section className="glass-card rounded-2xl border border-border/50 overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-border/30">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2">
-                <Gamepad2 size={14} className="text-neon-purple" /> Recent Games
+              <h2 className="font-black text-white text-sm flex items-center gap-2">
+                <Gamepad2 size={15} className="text-gold" /> Recent Games
               </h2>
-              <a href="/admin/games" className="text-xs text-neon-purple">View All</a>
+              <a href="/admin/games" className="text-xs text-gold font-bold">Open</a>
             </div>
             <div className="divide-y divide-border/30">
               {loading ? (
-                [1,2,3].map(i => <div key={i} className="p-4 animate-pulse"><div className="h-4 bg-navy-light rounded w-3/4" /></div>)
+                [1, 2, 3].map(i => <div key={i} className="p-4 animate-pulse"><div className="h-4 bg-navy-light rounded w-3/4" /></div>)
               ) : recentGames.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground text-sm">No games yet</div>
-              ) : recentGames.map(g => (
-                <div key={g.id} className="flex items-center justify-between p-4">
-                  <div>
-                    <p className="text-sm font-bold text-white truncate">{g.title}</p>
-                    <p className="text-xs text-muted-foreground">{g.scheduled_at ? new Date(g.scheduled_at).toLocaleDateString() : '-'}</p>
+              ) : recentGames.map(game => (
+                <div key={game.id} className="flex items-center justify-between p-4 gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-white truncate">{game.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {game.is_paid ? `${fmt(game.entry_fee)} entry` : 'Free to play'} · {game.total_questions || 0} questions
+                    </p>
                   </div>
-                  <span className={`text-xs font-bold capitalize ${statusColors[g.status] || 'text-muted-foreground'}`}>
-                    {g.status}
-                  </span>
+                  <span className={`text-xs font-black uppercase ${statusColor[game.status] || 'text-muted-foreground'}`}>{game.status}</span>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
-          {/* Recent Claims */}
-          <div className="glass-card rounded-2xl border border-border/50">
+          <section className="glass-card rounded-2xl border border-border/50 overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-border/30">
-              <h2 className="font-bold text-white text-sm flex items-center gap-2">
-                <Gift size={14} className="text-gold" /> Recent Claims
+              <h2 className="font-black text-white text-sm flex items-center gap-2">
+                <Wallet size={15} className="text-gold" /> Recent Deposits
               </h2>
-              <a href="/admin/claims" className="text-xs text-neon-purple">View All</a>
+              <span className="text-xs text-muted-foreground">{data.deposits.length} total</span>
             </div>
             <div className="divide-y divide-border/30">
               {loading ? (
-                [1,2,3].map(i => <div key={i} className="p-4 animate-pulse"><div className="h-4 bg-navy-light rounded w-3/4" /></div>)
-              ) : recentClaims.length === 0 ? (
-                <div className="p-6 text-center text-muted-foreground text-sm">No claims yet</div>
-              ) : recentClaims.map(c => (
-                <div key={c.id} className="flex items-center justify-between p-4">
+                [1, 2, 3].map(i => <div key={i} className="p-4 animate-pulse"><div className="h-4 bg-navy-light rounded w-3/4" /></div>)
+              ) : recentDeposits.length === 0 ? (
+                <div className="p-6 text-center text-muted-foreground text-sm">No deposits yet</div>
+              ) : recentDeposits.map(deposit => (
+                <div key={deposit.id} className="flex items-center justify-between p-4">
                   <div>
-                    <p className="text-sm font-bold text-white">{c.full_name}</p>
-                    <p className="text-xs text-muted-foreground">{c.payment_method}</p>
+                    <p className="text-sm font-black text-white">{fmt(deposit.amount)}</p>
+                    <p className="text-xs text-muted-foreground">{deposit.provider || 'chapa'} · {deposit.purpose || 'wallet'}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-gold">
-                      {new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(c.prize_amount || 0)}
-                    </p>
-                    <span className={`text-xs font-bold ${claimColors[c.status] || ''}`}>{c.status?.toUpperCase()}</span>
-                  </div>
+                  <span className={`text-xs font-black uppercase ${deposit.status === 'paid' ? 'text-correct-green' : 'text-yellow-400'}`}>{deposit.status}</span>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </AdminLayout>
