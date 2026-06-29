@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Music2, ShieldCheck, Users, Trophy, Clock3, Youtube } from 'lucide-react';
+import { ListChecks, Music2, ShieldCheck, Users, Trophy, Clock3, Youtube } from 'lucide-react';
 import DinkLogo from '@/components/DinkLogo';
 import CountdownTimer from '@/components/CountdownTimer';
 import { GameCardSkeleton } from '@/components/LoadingSkeleton';
@@ -10,6 +10,16 @@ import PullToRefresh from '@/components/PullToRefresh';
 import BrandMascot from '@/components/BrandMascot';
 
 const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
+const activeUniquePlayers = (players) => {
+  const seen = new Set();
+  return players.filter((player) => {
+    if (player.is_disqualified || player.is_eliminated || player.status === 'disconnected') return false;
+    const key = player.user_id || player.username || player.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 export default function Home() {
   const { currentUser, currentGame, gameStatus, nextGame, loadNextGame, loadActiveGame, setCurrentUser } = useGame();
@@ -26,7 +36,7 @@ export default function Home() {
   const entryFee = Number(displayGame?.entry_fee || 0);
   const isPaid = Boolean(displayGame?.is_paid && entryFee > 0);
   const walletBalance = Number(currentUser?.wallet_balance || 0);
-  const activePlayerCount = players.filter(p => !p.is_disqualified && !p.is_eliminated && p.status !== 'disconnected').length;
+  const activePlayerCount = activeUniquePlayers(players).length;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -192,11 +202,11 @@ export default function Home() {
               )}
 
               <div className="grid grid-cols-2 gap-2">
-                <Link to="/rules" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
+                <Link to="/tasks" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
                   <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                    <BookOpen size={16} className="text-primary" />
+                    <ListChecks size={16} className="text-primary" />
                   </div>
-                  <span className="text-sm font-black text-foreground">Rules</span>
+                  <span className="text-sm font-black text-foreground">Tasks</span>
                 </Link>
                 <Link to="/winners" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
                   <div className="w-9 h-9 rounded-full bg-gold/15 flex items-center justify-center">

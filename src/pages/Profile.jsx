@@ -29,11 +29,11 @@ export default function Profile() {
           <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/25 flex items-center justify-center overflow-hidden flex-shrink-0">
             {currentUser?.photo_url
               ? <img src={currentUser.photo_url} className="w-full h-full object-cover" alt="" />
-              : <span className="font-game text-2xl font-black text-primary">{(currentUser?.full_name || 'U')[0]?.toUpperCase()}</span>}
+              : <span className="font-game text-2xl font-black text-primary">{(currentUser?.telegram_username || currentUser?.full_name || 'D')[0]?.toUpperCase()}</span>}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-black text-foreground text-lg truncate">{currentUser?.full_name || 'Player'}</p>
-            <p className="text-muted-foreground text-sm truncate">{currentUser?.telegram_username ? `@${currentUser.telegram_username}` : currentUser?.username || 'Telegram player'}</p>
+            <p className="font-black text-foreground text-lg truncate">{currentUser?.telegram_username ? `@${currentUser.telegram_username}` : currentUser?.full_name || 'Dink user'}</p>
+            <p className="text-muted-foreground text-sm truncate">{currentUser?.username || currentUser?.full_name || 'Dink account'}</p>
           </div>
         </div>
       </header>

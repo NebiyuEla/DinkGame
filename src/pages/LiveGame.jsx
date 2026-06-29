@@ -8,6 +8,12 @@ import BrandMascot from '@/components/BrandMascot';
 
 const ETHIOPIC_RE = /[\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF\uAB00-\uAB2F]/;
 const amharicClass = (text) => (ETHIOPIC_RE.test(text || '') ? 'font-amharic' : '');
+const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
+const displayName = (user) => {
+  if (user?.telegram_username) return `@${user.telegram_username}`;
+  if (user?.username) return user.username.startsWith('@') ? user.username : `@${user.username}`;
+  return user?.full_name || 'Dink user';
+};
 
 const canPlay = (player) => (
   player &&
@@ -24,7 +30,6 @@ export default function LiveGame() {
     currentUser,
     myAnswer,
     setMyAnswer,
-    myScore,
     setMyScore,
     timeLeft,
     setTimeLeft,
@@ -49,7 +54,6 @@ export default function LiveGame() {
   const [showExplanation, setShowExplanation] = useState(false);
   const [revealedCorrect, setRevealedCorrect] = useState(null);
   const [showCorrectBurst, setShowCorrectBurst] = useState(false);
-  const [burstPoints, setBurstPoints] = useState(0);
 
   const timerRef = useRef(null);
   const pollRef = useRef(null);
@@ -58,7 +62,7 @@ export default function LiveGame() {
 
   const questionIndex = game?.current_question_index || 0;
   const activePlayers = players.filter(canPlay);
-  const activeCount = activePlayers.length;
+  const activeCount = new Set(activePlayers.map(item => item.user_id || item.username || item.id)).size;
   const myCanPlay = canPlay(player);
   const correctOption = question?.options?.find(option => option.label === revealedCorrect);
 
@@ -72,7 +76,8 @@ export default function LiveGame() {
     return stats;
   }, [answers, question?.id]);
 
-  const getOrCreatePlayer = useCallback(async (gameId) => {
+  const getOrCreatePlayer = useCallback(async (gameRecord) => {
+    const gameId = typeof gameRecord === 'string' ? gameRecord : gameRecord?.id;
     if (!currentUser?.id || !gameId) return null;
     const bans = await appClient.entities.GameBan.filter({ game_id: gameId, user_id: currentUser.id, is_active: true }, '-created_date', 1).catch(() => []);
     if (bans.length > 0) {
@@ -86,12 +91,24 @@ export default function LiveGame() {
       return null;
     }
 
-    const existing = await appClient.entities.GamePlayer.filter({ game_id: gameId, user_id: currentUser.id }, '-created_date', 1);
-    if (existing.length > 0) return existing[0];
+    const existing = await appClient.entities.GamePlayer.filter({ game_id: gameId, user_id: currentUser.id }, '-created_date', 20);
+    if (existing.length > 0) {
+      const [primary, ...duplicates] = existing;
+      await Promise.all(duplicates.map(row => appClient.entities.GamePlayer.update(row.id, {
+        status: 'disconnected',
+        is_eliminated: true,
+        disqualify_reason: 'Duplicate session closed',
+      })));
+      return await appClient.entities.GamePlayer.update(primary.id, {
+        username: displayName(currentUser),
+        last_seen: new Date().toISOString(),
+      });
+    }
+    if (gameRecord?.status === 'live' && gameRecord.allow_late_join !== true) return null;
     return await appClient.entities.GamePlayer.create({
       game_id: gameId,
       user_id: currentUser.id,
-      username: currentUser.full_name || currentUser.username || 'Player',
+      username: displayName(currentUser),
       joined_at: new Date().toISOString(),
       status: 'playing',
     });
@@ -106,12 +123,12 @@ export default function LiveGame() {
     setTimeLeft(next);
     timerRef.current = setInterval(() => {
       next = getRemaining();
-      setTimeLeft(Math.max(0, next));
+      setTimeLeft(prev => (prev === next ? prev : Math.max(0, next)));
       if (next <= 0) {
         clearInterval(timerRef.current);
         setIsAnswerLocked(true);
       }
-    }, 1000);
+    }, 250);
   }, [setIsAnswerLocked, setTimeLeft]);
 
   const scoreReveal = useCallback(async (latestGame, q, latestPlayer) => {
@@ -149,7 +166,6 @@ export default function LiveGame() {
     if (answer.is_scored) {
       setAnswerResult(isCorrect ? 'correct' : 'wrong');
       if (isCorrect) {
-        setBurstPoints(answer.points_earned || 0);
         setShowCorrectBurst(true);
       }
       return;
@@ -174,7 +190,6 @@ export default function LiveGame() {
       });
       setPlayer(updatedPlayer);
       setMyScore(updatedPlayer.total_score || 0);
-      setBurstPoints(points);
       setAnswerResult('correct');
       setShowCorrectBurst(true);
     } else {
@@ -213,7 +228,7 @@ export default function LiveGame() {
     if (latestGame.status === 'ended') { navigate(`/winners?game=${latestGame.id}`); return; }
 
     const q = qs[latestGame.current_question_index || 0];
-    const latestPlayer = await getOrCreatePlayer(latestGame.id);
+    const latestPlayer = await getOrCreatePlayer(latestGame);
     const mine = ans.find(answer => answer.question_id === q?.id && answer.user_id === currentUser?.id);
 
     setGame(latestGame);
@@ -306,7 +321,7 @@ export default function LiveGame() {
 
   return (
     <div className="min-h-screen dink-orange-field flex flex-col overflow-hidden text-primary">
-      {showCorrectBurst && <CorrectBurst points={burstPoints} onDone={() => setShowCorrectBurst(false)} />}
+      {showCorrectBurst && <CorrectBurst onDone={() => setShowCorrectBurst(false)} />}
 
       <header className="px-4 pt-3 pb-2 flex items-center justify-between text-white">
         <div className="flex items-center gap-2 font-black">
@@ -317,23 +332,73 @@ export default function LiveGame() {
           <div className="absolute inset-1 rounded-full border-2 border-gold/50" />
           <span className={`text-3xl font-black ${timeLeft <= 3 ? 'text-wrong-red animate-shake' : 'text-primary'}`}>{timeLeft}</span>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] font-black text-white/70">SCORE</p>
-          <p className="text-lg font-black">{myScore}</p>
+        <div className="text-right max-w-[5.5rem]">
+          <p className="text-[10px] font-black text-white/70">PRIZE</p>
+          <p className="text-sm font-black truncate">{fmt(game?.prize_amount || 0)}</p>
         </div>
       </header>
 
       <main className="px-4 pt-2 flex-1 flex flex-col">
+        {showExplanation ? (
+          <section className="dink-answer-card rounded-[1.6rem] p-4 mb-3 animate-slide-up">
+            {resultLabel && (
+              <div className={`mx-auto mb-3 flex w-fit min-h-9 items-center justify-center rounded-full border px-4 font-amharic text-lg font-black ${resultLabel.className}`}>
+                {resultLabel.text}
+              </div>
+            )}
+            <h1 className={`text-center text-lg leading-relaxed font-black text-foreground mb-4 ${amharicClass(question.text)}`}>
+              {question.text}
+            </h1>
+
+            <div className="space-y-2">
+              {(question.options || []).slice(0, 4).map(option => {
+                const count = optionStats[option.label] || 0;
+                const totalAnswers = Math.max(1, answers.filter(a => a.question_id === question.id).length);
+                const pct = Math.min(100, Math.round((count / totalAnswers) * 100));
+                const isCorrect = option.label === revealedCorrect;
+                const isMine = myAnswer === option.label;
+                return (
+                  <div
+                    key={option.label}
+                    className={`w-full rounded-2xl border-2 px-4 py-3 ${
+                      isCorrect ? 'bg-correct-green text-white border-correct-green' :
+                        isMine ? 'bg-wrong-red text-white border-wrong-red' :
+                          'bg-white/75 text-foreground border-white/70'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`flex-1 font-black text-base leading-snug ${amharicClass(option.text)}`}>{option.text}</span>
+                      <span className="text-sm font-black opacity-80">{count.toLocaleString()}</span>
+                    </div>
+                    <div className="mt-2 h-1.5 rounded-full bg-black/10 overflow-hidden">
+                      <div className="h-full rounded-full bg-current opacity-35" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-white/75 border border-border p-4 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Eye size={15} className="text-primary" />
+                <p className="text-xs font-black text-primary">Explanation</p>
+              </div>
+              {correctOption && (
+                <p className={`font-black text-foreground mb-2 ${amharicClass(correctOption.text)}`}>{correctOption.text}</p>
+              )}
+              {question.explanation && (
+                <p className={`text-sm text-muted-foreground leading-relaxed ${amharicClass(question.explanation)}`}>
+                  {question.explanation}
+                </p>
+              )}
+            </div>
+          </section>
+        ) : (
         <section className="dink-answer-card rounded-[1.6rem] p-4 mb-3">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-black text-muted-foreground">{game?.title}</p>
             <p className="text-xs font-black text-primary">{questionIndex + 1}/{questions.length}</p>
           </div>
-          {showExplanation && resultLabel && (
-            <div className={`mx-auto mb-3 flex w-fit min-h-9 items-center justify-center rounded-full border px-4 font-amharic text-lg font-black ${resultLabel.className}`}>
-              {resultLabel.text}
-            </div>
-          )}
           <h1 className={`text-center text-xl leading-relaxed font-black text-foreground mb-4 ${amharicClass(question.text)}`}>
             {question.text}
           </h1>
@@ -350,47 +415,17 @@ export default function LiveGame() {
                 >
                   <div className="flex items-center gap-3">
                     <span className={`flex-1 font-black text-base leading-snug ${amharicClass(option.text)}`}>{option.text}</span>
-                    {showExplanation && (
-                      <span className="text-sm font-black opacity-70">{count.toLocaleString()}</span>
-                    )}
                   </div>
-                  {showExplanation && count > 0 && (
-                    <div className="mt-2 h-1.5 rounded-full bg-black/10 overflow-hidden">
-                      <div className="h-full rounded-full bg-current opacity-30" style={{ width: `${Math.min(100, Math.round((count / Math.max(1, answers.filter(a => a.question_id === question.id).length)) * 100))}%` }} />
-                    </div>
-                  )}
                 </button>
               );
             })}
           </div>
-
-          {showExplanation && (
-            <div className="mt-4 rounded-2xl bg-white/75 border border-border p-4 text-center animate-slide-up">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Eye size={15} className="text-primary" />
-                <p className="text-xs font-black text-primary">Explanation</p>
-              </div>
-              {correctOption && (
-                <p className={`font-black text-foreground mb-2 ${amharicClass(correctOption.text)}`}>{correctOption.text}</p>
-              )}
-              {question.explanation && (
-                <p className={`text-sm text-muted-foreground leading-relaxed ${amharicClass(question.explanation)}`}>
-                  {question.explanation}
-                </p>
-              )}
-            </div>
-          )}
         </section>
+        )}
 
         {!myCanPlay && (
           <div className="rounded-full bg-white/20 px-4 py-3 text-white text-center font-black mb-3">
             Watching only
-          </div>
-        )}
-
-        {isAnswerLocked && !showExplanation && myCanPlay && (
-          <div className="rounded-full bg-white/20 px-4 py-3 text-white text-center font-black mb-3">
-            Waiting for reveal
           </div>
         )}
 

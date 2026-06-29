@@ -6,6 +6,15 @@ import { appClient } from '@/api/appClient';
 const isConnectedPlayer = (player) => !player.is_disqualified && (player.status || 'playing') !== 'disconnected';
 const isContestant = (player) => isConnectedPlayer(player) && !player.is_eliminated && ['lobby', 'playing'].includes(player.status || 'playing');
 const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
+const uniqueByUser = (rows) => {
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = row.user_id || row.username || row.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 export default function AdminLiveController() {
   const [games, setGames] = useState([]);
@@ -103,7 +112,7 @@ export default function AdminLiveController() {
       if (action === 'start_game') {
         const startedAt = new Date().toISOString();
         const money = calculateMoney(game);
-        const lobbyPlayers = players.filter(player => ['lobby', 'playing'].includes(player.status || 'lobby'));
+        const lobbyPlayers = uniqueByUser(players.filter(player => ['lobby', 'playing'].includes(player.status || 'lobby')));
         for (const player of lobbyPlayers) {
           await appClient.entities.GamePlayer.update(player.id, { status: 'playing' });
         }
@@ -138,7 +147,6 @@ export default function AdminLiveController() {
         const currentIndex = game.current_question_index || 0;
         const currentQuestion = questions[currentIndex];
         if (currentQuestion && game.explanation_question_index !== currentIndex) {
-          alert('Reveal the answer before moving to the next question.');
           setActionLoading('');
           return;
         }
@@ -187,7 +195,7 @@ export default function AdminLiveController() {
   };
 
   const banPlayer = async (player) => {
-    const reason = prompt('Reason for this game ban:', 'Admin fair-play decision');
+    const reason = prompt('Reason for this game ban:', 'Suspicious activity');
     if (!reason) return;
     await appClient.entities.GamePlayer.update(player.id, {
       is_disqualified: true,
@@ -198,7 +206,7 @@ export default function AdminLiveController() {
     await appClient.entities.GameBan.create({
       game_id: player.game_id,
       user_id: player.user_id,
-      username: player.username || 'Player',
+      username: player.username || 'Dink user',
       reason,
       is_active: true,
     });
@@ -218,8 +226,8 @@ export default function AdminLiveController() {
   const currentQuestion = questions[currentIndex];
   const currentAnswers = currentQuestion ? answers.filter(answer => answer.question_id === currentQuestion.id) : [];
   const answeredCount = currentAnswers.length;
-  const liveUserCount = players.filter(isConnectedPlayer).length;
-  const activePlayerCount = players.filter(isContestant).length;
+  const liveUserCount = uniqueByUser(players.filter(isConnectedPlayer)).length;
+  const activePlayerCount = uniqueByUser(players.filter(isContestant)).length;
   const eliminatedCount = players.filter(player => player.is_eliminated).length;
   const explanationRevealed = selectedGame?.explanation_question_index === currentIndex;
   const isLastQuestion = questions.length > 0 && currentIndex >= questions.length - 1;
@@ -249,7 +257,7 @@ export default function AdminLiveController() {
         <div>
           <p className="text-xs text-gold font-black tracking-widest">LIVE GAME CONTROL</p>
           <h1 className="font-game text-xl font-black text-white">Live Controller</h1>
-          <p className="text-muted-foreground text-sm">Start, reveal, move questions, end games, and enforce fair play.</p>
+          <p className="text-muted-foreground text-sm">Start games, show explanations, move questions, end games, and enforce security.</p>
         </div>
 
         <section className="glass-card rounded-2xl p-4 border border-border/50">
@@ -391,7 +399,7 @@ export default function AdminLiveController() {
 
             <section className="glass-card rounded-2xl border border-border/50 overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-border/30">
-                <p className="font-black text-white text-sm">Players ({players.length})</p>
+                <p className="font-black text-white text-sm">Players ({uniqueByUser(players).length})</p>
                 <BarChart2 size={14} className="text-gold" />
               </div>
               <div className="max-h-72 overflow-y-auto">
@@ -399,12 +407,12 @@ export default function AdminLiveController() {
                   <div key={player.id} className="flex items-center justify-between px-4 py-2.5 border-b border-border/20 last:border-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-xs text-muted-foreground w-5">{index + 1}</span>
-                      <span className="text-sm font-black text-white truncate">{player.username || `Player ${index + 1}`}</span>
+                      <span className="text-sm font-black text-white truncate">{player.username || `Dink user ${index + 1}`}</span>
                       {player.is_disqualified && <span className="text-[10px] text-wrong-red font-black">BANNED</span>}
                       {player.is_eliminated && <span className="text-[10px] text-amber-400 font-black">OUT</span>}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-game text-sm text-gold">{player.total_score || 0}</span>
+                      <span className="text-xs font-black text-gold">{player.correct_answers || 0} correct</span>
                       {!player.is_disqualified && (
                         <button onClick={() => banPlayer(player)} className="w-7 h-7 rounded-full bg-wrong-red/20 flex items-center justify-center" title="Ban from game">
                           <AlertTriangle size={11} className="text-wrong-red" />

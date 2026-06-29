@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { RotateCcw, Save, Settings, SlidersHorizontal } from 'lucide-react';
+import { RotateCcw, Save, Settings, SlidersHorizontal, Trash2 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { appClient } from '@/api/appClient';
 
@@ -7,20 +7,18 @@ const SETTING_DEFS = [
   { key: 'app_name', label: 'App Name', value: 'Dink Game', category: 'general', type: 'text' },
   { key: 'support_telegram', label: 'Support Telegram Username', value: '', category: 'general', type: 'text' },
   { key: 'game_schedule', label: 'Game Schedule Text', value: 'Every Sunday 9:00 PM', category: 'general', type: 'text' },
-  { key: 'welcome_message', label: 'Lobby Welcome Message', value: 'Welcome to Dink Game. Read the rules before we start.', category: 'general', type: 'textarea' },
+  { key: 'welcome_message', label: 'Lobby Welcome Message', value: 'Welcome to Dink Game.', category: 'general', type: 'textarea' },
 
   { key: 'default_total_questions', label: 'Default Questions Per Game', value: '15', category: 'gameplay', type: 'number', min: 1, max: 100 },
   { key: 'default_question_timer', label: 'Default Question Timer', value: '10', category: 'gameplay', type: 'number', min: 3, max: 120, suffix: 'sec' },
   { key: 'default_max_players', label: 'Default Max Players', value: '10000', category: 'gameplay', type: 'number', min: 1, max: 100000 },
   { key: 'allow_late_join_default', label: 'Allow Late Join By Default', value: 'false', category: 'gameplay', type: 'toggle' },
-  { key: 'require_admin_reveal', label: 'Require Reveal Before Next Question', value: 'true', category: 'gameplay', type: 'toggle' },
   { key: 'eliminate_on_wrong', label: 'Eliminate On Wrong Or No Answer', value: 'true', category: 'gameplay', type: 'toggle' },
   { key: 'allow_watch_after_elimination', label: 'Allow Eliminated Users To Watch', value: 'true', category: 'gameplay', type: 'toggle' },
   { key: 'min_answer_options', label: 'Minimum Answer Options', value: '3', category: 'gameplay', type: 'number', min: 3, max: 4 },
   { key: 'max_answer_options', label: 'Maximum Answer Options', value: '4', category: 'gameplay', type: 'number', min: 3, max: 4 },
 
-  { key: 'base_points', label: 'Base Points', value: '100', category: 'scoring', type: 'number', min: 0, max: 10000 },
-  { key: 'speed_bonus_max', label: 'Max Speed Bonus', value: '50', category: 'scoring', type: 'number', min: 0, max: 10000 },
+  { key: 'speed_bonus_max', label: 'Quick Answer Tie Score', value: '50', category: 'scoring', type: 'number', min: 0, max: 10000 },
   { key: 'winner_split_mode', label: 'Winner Payout Mode', value: 'equal_split', category: 'scoring', type: 'select', options: ['equal_split'] },
   { key: 'tie_breaker', label: 'Rank Tie Breaker', value: 'fastest_total_time', category: 'scoring', type: 'select', options: ['fastest_total_time', 'earliest_joined'] },
 
@@ -166,6 +164,20 @@ export default function AdminSettings() {
     setSettings(SETTING_DEFS.map(setting => ({ ...setting })));
   };
 
+  const clearAllData = async () => {
+    if (!confirm('Clear every Dink Game record and restore the seeded app state?')) return;
+    if (!confirm('This removes users, games, questions, deposits, withdrawals, chats, bans, and logs. Continue?')) return;
+    const resetToken = prompt('Enter reset token if Render requires it. Leave blank for local reset.');
+    setSaving(true);
+    try {
+      await appClient.resetAllData(resetToken || '');
+      window.location.reload();
+    } catch (error) {
+      alert(error.message || 'Failed to clear data.');
+      setSaving(false);
+    }
+  };
+
   const categories = useMemo(() => [...new Set(settings.map(s => s.category))], [settings]);
   const visibleSettings = settings.filter(s => s.category === activeCategory);
 
@@ -181,9 +193,14 @@ export default function AdminSettings() {
           </div>
           <div className="flex items-center gap-2">
             <button onClick={resetDefaults}
-              className="hidden sm:flex items-center gap-2 bg-navy-light text-muted-foreground font-bold px-4 py-2.5 rounded-xl text-sm">
+              className="flex items-center gap-2 bg-navy-light text-muted-foreground font-bold px-4 py-2.5 rounded-xl text-sm">
               <RotateCcw size={14} />
               Defaults
+            </button>
+            <button onClick={clearAllData} disabled={saving}
+              className="flex items-center gap-2 bg-wrong-red/15 text-wrong-red font-bold px-4 py-2.5 rounded-xl text-sm disabled:opacity-50">
+              <Trash2 size={14} />
+              Clear Data
             </button>
             <button onClick={handleSave} disabled={saving}
               className="flex items-center gap-2 gradient-purple-blue text-white font-bold px-4 py-2.5 rounded-xl text-sm disabled:opacity-50">

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, CreditCard, Landmark } from 'lucide-react';
+import { ArrowLeft, CheckCircle, CreditCard, Edit3, Landmark } from 'lucide-react';
 import DinkLogo from '@/components/DinkLogo';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
@@ -16,16 +16,19 @@ export default function Deposit() {
   const suggestedAmount = Number(searchParams.get('amount') || game?.entry_fee || 50);
   const [amount, setAmount] = useState(suggestedAmount || 50);
   const [phone, setPhone] = useState('');
+  const [phoneLocked, setPhoneLocked] = useState(true);
   const [email, setEmail] = useState('');
   const [deposit, setDeposit] = useState(null);
   const [withdrawAmount, setWithdrawAmount] = useState(100);
   const [withdrawPhone, setWithdrawPhone] = useState('');
+  const [withdrawPhoneLocked, setWithdrawPhoneLocked] = useState(true);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [verifyingReturn, setVerifyingReturn] = useState(false);
   const [message, setMessage] = useState('');
 
   const walletBalance = Number(currentUser?.wallet_balance || 0);
+  const defaultPhone = currentUser?.telebirr_phone || currentUser?.phone || currentUser?.telegram_phone || '';
 
   const refresh = useCallback(async () => {
     if (!currentUser?.id) return;
@@ -38,6 +41,23 @@ export default function Deposit() {
   }, [currentUser?.id, setCurrentUser]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    if (!defaultPhone) return;
+    setPhone(prev => prev || defaultPhone);
+    setWithdrawPhone(prev => prev || defaultPhone);
+  }, [defaultPhone]);
+
+  const saveDefaultPhone = async (value) => {
+    const clean = String(value || '').trim();
+    if (!clean || !currentUser?.id) return;
+    if (clean === currentUser.telebirr_phone && clean === currentUser.phone) return;
+    const updated = await appClient.entities.User.update(currentUser.id, {
+      telebirr_phone: clean,
+      phone: currentUser.phone || clean,
+    });
+    setCurrentUser(updated);
+  };
 
   useEffect(() => {
     const txRef = searchParams.get('tx_ref') || searchParams.get('trx_ref');
@@ -86,12 +106,13 @@ export default function Deposit() {
         user_id: currentUser.id,
         game_id: game?.id || '',
         amount: Number(amount),
-        phone,
+        phone: phone.trim() || defaultPhone,
         email: email || currentUser.email,
         purpose: 'wallet',
         return_url: returnUrl.toString(),
         callback_url: `${window.location.origin}/api/payments/chapa/webhook`,
       });
+      await saveDefaultPhone(phone.trim() || defaultPhone);
       setDeposit(result.deposit);
       if (result.checkout_url) {
         const webApp = getTelegramWebApp();
@@ -126,17 +147,19 @@ export default function Deposit() {
     const value = Number(withdrawAmount || 0);
     if (value < 100) { setMessage('Minimum Telebirr withdrawal is 100 ETB.'); return; }
     if (value > walletBalance) { setMessage('Wallet balance is not enough.'); return; }
-    if (!withdrawPhone.trim()) { setMessage('Telebirr phone is required.'); return; }
+    const cleanPhone = withdrawPhone.trim() || defaultPhone;
+    if (!cleanPhone) { setMessage('Telebirr phone is required.'); return; }
 
     setLoading(true);
     try {
       await appClient.entities.Withdrawal.create({
         user_id: currentUser.id,
         amount: value,
-        phone: withdrawPhone.trim(),
+        phone: cleanPhone,
         provider: 'telebirr',
         status: 'pending',
       });
+      await saveDefaultPhone(cleanPhone);
       const updated = await appClient.entities.User.update(currentUser.id, {
         wallet_balance: walletBalance - value,
       });
@@ -146,7 +169,7 @@ export default function Deposit() {
         type: 'debit',
         status: 'pending',
         source: 'telebirr_withdrawal',
-        note: `Telebirr withdrawal to ${withdrawPhone.trim()}`,
+        note: `Telebirr withdrawal to ${cleanPhone}`,
       });
       setCurrentUser(updated);
       setMessage('Telebirr withdrawal request sent.');
@@ -210,13 +233,21 @@ export default function Deposit() {
             className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-lg font-black text-foreground outline-none focus:border-primary"
             placeholder="Amount"
           />
-          <input
-            type="tel"
-            value={phone}
-            onChange={e => setPhone(e.target.value)}
-            className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary"
-            placeholder="Telebirr / phone number"
-          />
+          <div className="flex gap-2">
+            <input
+              type="tel"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              disabled={phoneLocked && Boolean(defaultPhone)}
+              className="min-w-0 flex-1 rounded-2xl bg-muted border border-border px-4 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary disabled:opacity-80"
+              placeholder="Telebirr / phone number"
+            />
+            {defaultPhone && (
+              <button type="button" onClick={() => setPhoneLocked(false)} className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <Edit3 size={16} />
+              </button>
+            )}
+          </div>
           <input
             type="email"
             value={email}
@@ -252,13 +283,21 @@ export default function Deposit() {
             className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-lg font-black text-foreground outline-none focus:border-primary"
             placeholder="Amount"
           />
-          <input
-            type="tel"
-            value={withdrawPhone}
-            onChange={e => setWithdrawPhone(e.target.value)}
-            className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary"
-            placeholder="Telebirr phone"
-          />
+          <div className="flex gap-2">
+            <input
+              type="tel"
+              value={withdrawPhone}
+              onChange={e => setWithdrawPhone(e.target.value)}
+              disabled={withdrawPhoneLocked && Boolean(defaultPhone)}
+              className="min-w-0 flex-1 rounded-2xl bg-muted border border-border px-4 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary disabled:opacity-80"
+              placeholder="Telebirr phone"
+            />
+            {defaultPhone && (
+              <button type="button" onClick={() => setWithdrawPhoneLocked(false)} className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <Edit3 size={16} />
+              </button>
+            )}
+          </div>
           <button disabled={loading || walletBalance < 100} className="w-full rounded-full bg-primary text-white font-black py-4 active:scale-95 transition-transform disabled:opacity-50">
             Request Withdrawal
           </button>

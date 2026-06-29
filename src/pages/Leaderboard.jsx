@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Medal, Trophy, Zap } from 'lucide-react';
+import { Medal, Trophy, Timer } from 'lucide-react';
 import RankBadge from '@/components/RankBadge';
 import { LeaderboardSkeleton } from '@/components/LoadingSkeleton';
 import { useGame } from '@/lib/gameContext';
@@ -20,7 +20,7 @@ function getWeekStart() {
 }
 
 function PlayerAvatar({ user }) {
-  const initial = user?.full_name?.[0] || user?.username?.[0] || 'P';
+  const initial = user?.telegram_username?.[0] || user?.username?.[0] || user?.full_name?.[0] || 'D';
   return (
     <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
       {user?.photo_url
@@ -36,7 +36,7 @@ export default function Leaderboard() {
   const [userMap, setUserMap] = useState({});
   const [winningsMap, setWinningsMap] = useState({});
   const [loading, setLoading] = useState(true);
-  const { currentUser, myScore } = useGame();
+  const { currentUser } = useGame();
 
   useEffect(() => { loadLeaderboard(true); }, [activeTab]);
 
@@ -44,16 +44,11 @@ export default function Leaderboard() {
     if (showLoading) setLoading(true);
     try {
       const [players, users, transactions] = await Promise.all([
-        appClient.entities.GamePlayer.filter({}, '-total_score', 150),
+        appClient.entities.GamePlayer.filter({}, '-created_date', 1000),
         appClient.entities.User.list(),
         appClient.entities.WalletTransaction.filter({ source: 'game_prize' }, '-created_date', 1000).catch(() => []),
       ]);
       const weekStart = getWeekStart();
-      const sorted = players
-        .filter(player => !player.is_disqualified && !player.is_eliminated && Number(player.total_score || 0) > 0)
-        .filter(player => activeTab === 'ALL TIME' || new Date(player.joined_at || player.created_date) >= weekStart)
-        .sort((a, b) => Number(b.total_score || 0) - Number(a.total_score || 0) || Number(a.total_response_time_ms || 0) - Number(b.total_response_time_ms || 0))
-        .slice(0, 30);
       const map = {};
       users.forEach(user => { map[user.id] = user; });
       const won = {};
@@ -62,6 +57,37 @@ export default function Leaderboard() {
         .forEach(tx => {
           won[tx.user_id] = Number(won[tx.user_id] || 0) + Number(tx.amount || 0);
         });
+      const aggregated = {};
+      players
+        .filter(player => !player.is_disqualified)
+        .filter(player => activeTab === 'ALL TIME' || new Date(player.joined_at || player.created_date) >= weekStart)
+        .forEach(player => {
+          const key = player.user_id;
+          if (!key) return;
+          if (!aggregated[key]) {
+            aggregated[key] = {
+              id: key,
+              user_id: key,
+              total_score: 0,
+              correct_answers: 0,
+              total_response_time_ms: 0,
+              games_played: 0,
+            };
+          }
+          aggregated[key].total_score += Number(player.total_score || 0);
+          aggregated[key].correct_answers += Number(player.correct_answers || 0);
+          aggregated[key].total_response_time_ms += Number(player.total_response_time_ms || 0);
+          aggregated[key].games_played += 1;
+        });
+      Object.entries(won).forEach(([userId, amount]) => {
+        if (!aggregated[userId]) aggregated[userId] = { id: userId, user_id: userId, total_score: 0, correct_answers: 0, total_response_time_ms: 0, games_played: 0 };
+        aggregated[userId].wallet_won = amount;
+      });
+      const sorted = Object.values(aggregated)
+        .map(entry => ({ ...entry, wallet_won: Number(won[entry.user_id] || entry.wallet_won || 0) }))
+        .filter(entry => entry.wallet_won > 0 || entry.total_score > 0)
+        .sort((a, b) => Number(b.wallet_won || 0) - Number(a.wallet_won || 0) || Number(b.total_score || 0) - Number(a.total_score || 0) || Number(a.total_response_time_ms || 0) - Number(b.total_response_time_ms || 0))
+        .slice(0, 30);
       setEntries(sorted);
       setUserMap(map);
       setWinningsMap(won);
@@ -75,6 +101,12 @@ export default function Leaderboard() {
   const myEntry = entries.find(entry => entry.user_id === currentUser?.id);
   const top3 = entries.slice(0, 3);
   const rest = entries.slice(3);
+  const displayName = (user, rank) => {
+    if (user?.telegram_username) return `@${user.telegram_username}`;
+    if (user?.username) return user.username.startsWith('@') ? user.username : `@${user.username}`;
+    if (user?.full_name) return user.full_name;
+    return `Dink user ${rank}`;
+  };
 
   return (
     <div className="min-h-screen bg-background pb-24 flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
@@ -85,7 +117,7 @@ export default function Leaderboard() {
               <Trophy size={20} className="text-gold" />
               Ranks
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Score history after games finish</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Money won, then quick-answer score</p>
           </div>
           <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
             <Medal size={18} className="text-primary" />
@@ -127,10 +159,10 @@ export default function Leaderboard() {
                       <RankBadge rank={index + 1} />
                       <PlayerAvatar user={user} />
                       <div className="flex-1 min-w-0">
-                        <p className="font-black text-foreground text-sm truncate">{user?.full_name || user?.username || `Player ${index + 1}`}</p>
-                        <p className="text-xs text-muted-foreground">{entry.correct_answers || 0} correct - {fmt(winningsMap[entry.user_id])} won</p>
+                        <p className="font-black text-foreground text-sm truncate">{displayName(user, index + 1)}</p>
+                        <p className="text-xs text-muted-foreground">{entry.correct_answers || 0} correct - speed {Number(entry.total_score || 0).toLocaleString()}</p>
                       </div>
-                      <p className="font-game text-primary font-black">{Number(entry.total_score || 0).toLocaleString()}</p>
+                      <p className="font-game text-primary font-black">{fmt(entry.wallet_won || winningsMap[entry.user_id])}</p>
                     </div>
                   );
                 })}
@@ -144,10 +176,10 @@ export default function Leaderboard() {
                   <PlayerAvatar user={userMap[currentUser.id] || currentUser} />
                   <div>
                     <p className="text-sm font-bold text-foreground">You</p>
-                    <p className="text-xs text-muted-foreground">{myEntry.correct_answers || 0} correct - {fmt(winningsMap[myEntry.user_id])} won</p>
+                    <p className="text-xs text-muted-foreground">{myEntry.correct_answers || 0} correct - {fmt(myEntry.wallet_won || winningsMap[myEntry.user_id])} won</p>
                   </div>
                 </div>
-                <span className="font-game text-primary font-bold">{myScore || myEntry.total_score || 0} pts</span>
+                <span className="font-game text-primary font-bold">{Number(myEntry.total_score || 0).toLocaleString()}</span>
               </div>
             )}
 
@@ -162,15 +194,15 @@ export default function Leaderboard() {
                     <RankBadge rank={rank} />
                     <PlayerAvatar user={user} />
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground text-sm truncate">{user?.full_name || user?.username || `Player ${rank}`}</p>
+                      <p className="font-semibold text-foreground text-sm truncate">{displayName(user, rank)}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <Zap size={9} className="text-gold" />
-                        <span className="text-xs text-muted-foreground">{entry.correct_answers || 0} correct - {fmt(winningsMap[entry.user_id])} won</span>
+                        <Timer size={9} className="text-gold" />
+                        <span className="text-xs text-muted-foreground">{entry.correct_answers || 0} correct - speed {Number(entry.total_score || 0).toLocaleString()}</span>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="font-game text-foreground font-bold text-sm">{Number(entry.total_score || 0).toLocaleString()}</p>
-                      <p className="text-[10px] text-muted-foreground">pts</p>
+                      <p className="font-game text-foreground font-bold text-sm">{fmt(entry.wallet_won || winningsMap[entry.user_id])}</p>
+                      <p className="text-[10px] text-muted-foreground">won</p>
                     </div>
                   </div>
                 );

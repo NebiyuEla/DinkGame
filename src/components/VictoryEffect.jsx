@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Trophy } from 'lucide-react';
 
 const COLORS = ['#7C3AED', '#2563EB', '#F59E0B', '#10B981', '#EF4444', '#EC4899'];
 
@@ -101,7 +101,7 @@ function playWinSound() {
 export { playCorrectSound, playWrongSound, playWinSound };
 
 // Correct answer burst overlay
-export function CorrectBurst({ points, onDone }) {
+export function CorrectBurst({ onDone }) {
   useEffect(() => {
     playCorrectSound();
     const t = setTimeout(onDone, 1500);
@@ -117,7 +117,7 @@ export function CorrectBurst({ points, onDone }) {
             <CheckCircle size={40} className="text-white" strokeWidth={2.5} />
           </div>
           <div className="bg-correct-green/90 px-5 py-2 rounded-full">
-            <span className="font-game font-black text-white text-lg">+{points} pts</span>
+            <span className="font-amharic font-black text-white text-lg">{"\u1270\u1218\u120d\u1237\u120d"}</span>
           </div>
         </div>
       </div>
@@ -148,6 +148,3 @@ export function WinCelebration({ onDone }) {
     </>
   );
 }
-
-// Import Trophy for WinCelebration
-import { Trophy } from 'lucide-react';

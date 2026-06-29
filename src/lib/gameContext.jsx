@@ -3,6 +3,11 @@ import { appClient } from '@/api/appClient';
 import { getTelegramProfile } from '@/lib/telegram';
 
 const GameContext = createContext(null);
+const displayName = (user) => {
+  if (user?.telegram_username) return `@${user.telegram_username}`;
+  if (user?.username) return user.username.startsWith('@') ? user.username : `@${user.username}`;
+  return user?.full_name || 'Dink user';
+};
 
 export function GameProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
@@ -81,7 +86,7 @@ export function GameProvider({ children }) {
 
       await appClient.entities.AntiCheatLog.create({
         user_id: currentUser.id,
-        username: currentUser.full_name || currentUser.username || 'Player',
+        username: displayName(currentUser),
         game_id: currentGame.id,
         event_type: eventType,
         details: `${reason}. Warning ${Math.min(nextWarningCount, 2)} of 2.`,
@@ -121,7 +126,7 @@ export function GameProvider({ children }) {
           await appClient.entities.GameBan.create({
             game_id: currentGame.id,
             user_id: currentUser.id,
-            username: currentUser.full_name || currentUser.username || 'Player',
+            username: displayName(currentUser),
             reason,
             is_active: true,
           });

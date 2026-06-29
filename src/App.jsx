@@ -20,7 +20,7 @@ import Leaderboard from './pages/Leaderboard';
 import Winners from './pages/Winners';
 import Profile from './pages/Profile';
 import Deposit from './pages/Deposit';
-import Rules from './pages/Rules';
+import Tasks from './pages/Tasks';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -56,7 +56,7 @@ function AdminGuard({ children }) {
 function PlayerRoute() {
   const { currentUser } = useGame();
   const location = useLocation();
-  const showNav = ['/', '/leaderboard', '/winners', '/rules', '/profile'].includes(location.pathname);
+  const showNav = ['/', '/leaderboard', '/winners', '/tasks', '/profile'].includes(location.pathname);
   const key = currentUser?.id ? `dink_welcome_seen_${currentUser.id}` : 'dink_welcome_seen_guest';
   const [showWelcome, setShowWelcome] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -79,6 +79,7 @@ function PlayerRoute() {
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={location.pathname}
+          className={showNav ? 'pb-[calc(5.1rem+env(safe-area-inset-bottom))]' : ''}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
@@ -147,7 +148,7 @@ const AuthenticatedApp = () => {
           <Route path="/winners" element={<Winners />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/deposit" element={<Deposit />} />
-          <Route path="/rules" element={<Rules />} />
+          <Route path="/tasks" element={<Tasks />} />
         </Route>
         <Route path="*" element={<PageNotFound />} />
       </Routes>

@@ -122,16 +122,16 @@ const seedState = () => {
       {
         id: 'question_demo_2',
         game_id: gameId,
-        text: 'How many players stay eligible after a wrong answer?',
+        text: 'How many answer choices can one Dink question have?',
         image_url: '',
-        explanation: 'In this format, one wrong answer knocks the player out. They can still watch.',
+        explanation: 'Each Dink Game question uses three or four answer choices so the game stays fast on mobile.',
         options: [
-          { label: 'A', text: 'All players' },
-          { label: 'B', text: 'Only correct players' },
-          { label: 'C', text: 'Only late joiners' },
+          { label: 'A', text: 'Two choices' },
+          { label: 'B', text: 'Three or four choices' },
+          { label: 'C', text: 'Seven choices' },
         ],
         correct_option: 'B',
-        category: 'Rules',
+        category: 'General',
         difficulty: 'medium',
         time_limit: 15,
         order_index: 1,
@@ -142,16 +142,16 @@ const seedState = () => {
       {
         id: 'question_demo_3',
         game_id: gameId,
-        text: 'When should players see the correct answer?',
+        text: 'What do winners receive after a game ends?',
         image_url: '',
-        explanation: 'Players see the result only after the admin reveals the explanation.',
+        explanation: 'The prize pool is split between players who remain eligible at the end, then credited to their wallet.',
         options: [
-          { label: 'A', text: 'Immediately after tapping' },
-          { label: 'B', text: 'After admin reveal' },
-          { label: 'C', text: 'After leaving the app' },
+          { label: 'A', text: 'Wallet money' },
+          { label: 'B', text: 'Profile badges only' },
+          { label: 'C', text: 'Practice badges' },
         ],
-        correct_option: 'B',
-        category: 'Rules',
+        correct_option: 'A',
+        category: 'Wallet',
         difficulty: 'easy',
         time_limit: 15,
         order_index: 2,
@@ -173,7 +173,7 @@ const seedState = () => {
       game_id: gameId,
       user_id: 'system',
       username: 'Dink Game',
-      message: 'ጨዋታው ሊጀምር ነው',
+      message: '\u1328\u12cb\u1273\u12cd \u120a\u1300\u121d\u122d \u1290\u12cd',
       is_system: true,
       created_date: created,
       updated_date: created,
@@ -377,12 +377,27 @@ const sendJson = (res, statusCode, data) => {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-    'access-control-allow-headers': 'content-type,x-dink-user-id',
+    'access-control-allow-headers': 'content-type,x-dink-user-id,x-dink-reset-token,x-dink-payout-token',
   });
   res.end(JSON.stringify(data));
 };
 
 const sendError = (res, statusCode, message) => sendJson(res, statusCode, { error: message });
+
+const requirePayoutToken = (req, res) => {
+  const payoutToken = process.env.DINK_ADMIN_PAYOUT_TOKEN || process.env.DINK_ADMIN_RESET_TOKEN;
+  if (process.env.NODE_ENV === 'production' || payoutToken) {
+    if (!payoutToken) {
+      sendError(res, 403, 'Set DINK_ADMIN_PAYOUT_TOKEN before enabling remote payouts.');
+      return false;
+    }
+    if (req.headers['x-dink-payout-token'] !== payoutToken) {
+      sendError(res, 403, 'Invalid payout token.');
+      return false;
+    }
+  }
+  return true;
+};
 
 const getOrCreateUser = async (profile = {}, userId) => {
   const state = await readState();
@@ -393,7 +408,7 @@ const getOrCreateUser = async (profile = {}, userId) => {
   if (!user) {
     user = {
       id: createId('user'),
-      full_name: profile.full_name || profile.email?.split('@')[0] || 'Player',
+      full_name: profile.full_name || profile.email?.split('@')[0] || 'Dink user',
       username: profile.username || profile.email?.split('@')[0] || 'player',
       email: profile.email || `${createId('player')}@dink.local`,
       telegram_id: profile.telegram_id || '',
@@ -537,7 +552,7 @@ const handlePaymentApi = async (req, res, pathname) => {
           currency: 'ETB',
           email: body.email || `${body.user_id || 'player'}@dinkgame.et`,
           first_name: body.first_name || 'Dink',
-          last_name: body.last_name || 'Player',
+          last_name: body.last_name || 'User',
           phone_number: body.phone || '',
           tx_ref: txRef,
           callback_url: body.callback_url,
@@ -603,6 +618,73 @@ const handlePaymentApi = async (req, res, pathname) => {
     return sendJson(res, 200, { deposit: clone(deposit), paid });
   }
 
+  if (req.method === 'POST' && pathname === '/api/payments/chapa/transfer') {
+    if (!requirePayoutToken(req, res)) return undefined;
+    const body = await readJsonBody(req);
+    const state = await readState();
+    const withdrawal = state.Withdrawal.find((item) => item.id === body.withdrawal_id);
+    if (!withdrawal) return sendError(res, 404, 'Withdrawal not found');
+    if (Number(withdrawal.amount || 0) < 100) return sendError(res, 400, 'Minimum Telebirr withdrawal is 100 ETB');
+
+    const user = state.User.find((item) => item.id === withdrawal.user_id);
+    const reference = body.reference || withdrawal.chapa_transfer_ref || `DINK-PAYOUT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    let transfer = { reference, status: 'demo_queued' };
+
+    if (process.env.CHAPA_SECRET_KEY) {
+      const response = await fetch('https://api.chapa.co/v1/transfers', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          account_name: body.account_name || user?.full_name || withdrawal.phone || 'Dink Game winner',
+          account_number: body.account_number || withdrawal.phone,
+          amount: String(Number(withdrawal.amount || 0)),
+          currency: 'ETB',
+          reference,
+          bank_code: body.bank_code || process.env.CHAPA_TRANSFER_BANK_CODE || 'telebirr',
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.status !== 'success') return sendError(res, 502, payload.message || 'Chapa transfer failed');
+      transfer = payload.data || { reference, status: payload.status };
+    }
+
+    withdrawal.chapa_transfer_ref = reference;
+    withdrawal.transfer_status = transfer.status || 'processing';
+    withdrawal.status = ['success', 'paid'].includes(String(transfer.status).toLowerCase()) ? 'paid' : 'processing';
+    withdrawal.processed_at = nowIso();
+    withdrawal.updated_date = nowIso();
+    await writeState(state);
+    return sendJson(res, 200, { withdrawal: clone(withdrawal), transfer });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/payments/chapa/transfer/verify') {
+    if (!requirePayoutToken(req, res)) return undefined;
+    const body = await readJsonBody(req);
+    const state = await readState();
+    const withdrawal = state.Withdrawal.find((item) => item.id === body.withdrawal_id || item.chapa_transfer_ref === body.reference);
+    if (!withdrawal) return sendError(res, 404, 'Withdrawal not found');
+    const reference = body.reference || withdrawal.chapa_transfer_ref;
+    let transfer = { reference, status: withdrawal.transfer_status || 'processing' };
+
+    if (process.env.CHAPA_SECRET_KEY && reference) {
+      const response = await fetch(`https://api.chapa.co/v1/transfers/verify/${encodeURIComponent(reference)}`, {
+        headers: { authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}` },
+      });
+      const payload = await response.json();
+      if (response.ok && payload.status === 'success') transfer = payload.data || { reference, status: payload.status };
+    }
+
+    const statusText = String(transfer.status || '').toLowerCase();
+    withdrawal.transfer_status = transfer.status || withdrawal.transfer_status || 'processing';
+    if (['success', 'paid'].includes(statusText)) withdrawal.status = 'paid';
+    withdrawal.updated_date = nowIso();
+    await writeState(state);
+    return sendJson(res, 200, { withdrawal: clone(withdrawal), transfer });
+  }
+
   if (req.method === 'POST' && pathname === '/api/payments/chapa/webhook') {
     const raw = await readTextBody(req);
     if (process.env.CHAPA_WEBHOOK_SECRET) {
@@ -630,6 +712,21 @@ const handlePaymentApi = async (req, res, pathname) => {
   }
 
   return sendError(res, 404, 'Unknown payment endpoint');
+};
+
+const handleAdminApi = async (req, res, pathname) => {
+  if (req.method === 'POST' && pathname === '/api/admin/reset-data') {
+    const resetToken = process.env.DINK_ADMIN_RESET_TOKEN;
+    if (process.env.NODE_ENV === 'production' || resetToken) {
+      if (!resetToken) return sendError(res, 403, 'Set DINK_ADMIN_RESET_TOKEN before enabling remote reset.');
+      if (req.headers['x-dink-reset-token'] !== resetToken) return sendError(res, 403, 'Invalid reset token.');
+    }
+    const seeded = seedState();
+    await writeState(seeded);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendError(res, 404, 'Unknown admin endpoint');
 };
 
 const handleAuthApi = async (req, res, pathname) => {
@@ -698,6 +795,7 @@ createServer(async (req, res) => {
 
     if (pathname === '/api/health') return sendJson(res, 200, { ok: true });
     if (pathname.startsWith('/api/payments/')) return await handlePaymentApi(req, res, pathname);
+    if (pathname.startsWith('/api/admin/')) return await handleAdminApi(req, res, pathname);
     if (pathname.startsWith('/api/entities/')) return await handleEntityApi(req, res, pathname);
     if (pathname.startsWith('/api/auth/')) return await handleAuthApi(req, res, pathname);
     return await serveStatic(req, res, pathname);

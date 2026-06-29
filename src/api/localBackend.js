@@ -197,16 +197,16 @@ const seedState = () => {
       {
         id: 'question_demo_2',
         game_id: gameId,
-        text: 'How many players stay eligible after a wrong answer?',
+        text: 'How many answer choices can one Dink question have?',
         image_url: '',
-        explanation: 'In this format, one wrong answer knocks the player out. They can still watch.',
+        explanation: 'Each Dink Game question uses three or four answer choices so the game stays fast on mobile.',
         options: [
-          { label: 'A', text: 'All players' },
-          { label: 'B', text: 'Only correct players' },
-          { label: 'C', text: 'Only late joiners' },
+          { label: 'A', text: 'Two choices' },
+          { label: 'B', text: 'Three or four choices' },
+          { label: 'C', text: 'Seven choices' },
         ],
         correct_option: 'B',
-        category: 'Rules',
+        category: 'General',
         difficulty: 'medium',
         time_limit: 15,
         order_index: 1,
@@ -217,16 +217,16 @@ const seedState = () => {
       {
         id: 'question_demo_3',
         game_id: gameId,
-        text: 'When should players see the correct answer?',
+        text: 'What do winners receive after a game ends?',
         image_url: '',
-        explanation: 'Players see the result only after the admin reveals the explanation.',
+        explanation: 'The prize pool is split between players who remain eligible at the end, then credited to their wallet.',
         options: [
-          { label: 'A', text: 'Immediately after tapping' },
-          { label: 'B', text: 'After admin reveal' },
-          { label: 'C', text: 'After leaving the app' },
+          { label: 'A', text: 'Wallet money' },
+          { label: 'B', text: 'Profile badges only' },
+          { label: 'C', text: 'Practice badges' },
         ],
-        correct_option: 'B',
-        category: 'Rules',
+        correct_option: 'A',
+        category: 'Wallet',
         difficulty: 'easy',
         time_limit: 15,
         order_index: 2,
@@ -249,7 +249,7 @@ const seedState = () => {
         game_id: gameId,
         user_id: 'system',
         username: 'Dink Game',
-        message: 'ጨዋታው ሊጀምር ነው',
+        message: '\u1328\u12cb\u1273\u12cd \u120a\u1300\u121d\u122d \u1290\u12cd',
         is_system: true,
         created_date: created,
         updated_date: created,
@@ -805,6 +805,46 @@ const payments = {
     }
     return { deposit: clone(deposit), paid: true };
   },
+
+  async initializeChapaTransfer(payload) {
+    if (useRemoteApi()) {
+      return remoteRequest('/payments/chapa/transfer', {
+        method: 'POST',
+        headers: payload.payout_token ? { 'x-dink-payout-token': payload.payout_token } : {},
+        body: JSON.stringify(payload),
+      });
+    }
+
+    const state = readState();
+    const withdrawal = state.Withdrawal.find((item) => item.id === payload.withdrawal_id);
+    if (!withdrawal) throw new Error('Withdrawal not found');
+    const reference = payload.reference || `DINK-PAYOUT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    withdrawal.chapa_transfer_ref = reference;
+    withdrawal.transfer_status = 'demo_queued';
+    withdrawal.status = 'processing';
+    withdrawal.processed_at = nowIso();
+    withdrawal.updated_date = nowIso();
+    writeState(state, 'Withdrawal:transfer');
+    return { withdrawal: clone(withdrawal), transfer: { reference, status: 'demo_queued' } };
+  },
+
+  async verifyChapaTransfer(payload) {
+    if (useRemoteApi()) {
+      return remoteRequest('/payments/chapa/transfer/verify', {
+        method: 'POST',
+        headers: payload.payout_token ? { 'x-dink-payout-token': payload.payout_token } : {},
+        body: JSON.stringify(payload),
+      });
+    }
+
+    const state = readState();
+    const withdrawal = state.Withdrawal.find((item) => item.id === payload.withdrawal_id || item.chapa_transfer_ref === payload.reference);
+    if (!withdrawal) throw new Error('Withdrawal not found');
+    withdrawal.transfer_status = withdrawal.transfer_status || 'demo_queued';
+    withdrawal.updated_date = nowIso();
+    writeState(state, 'Withdrawal:verify-transfer');
+    return { withdrawal: clone(withdrawal), transfer: { reference: withdrawal.chapa_transfer_ref, status: withdrawal.transfer_status } };
+  },
 };
 
 const events = {
@@ -828,6 +868,19 @@ export const appClient = {
   auth,
   payments,
   events,
+  async resetAllData(resetToken = '') {
+    if (useRemoteApi()) {
+      return remoteRequest('/admin/reset-data', {
+        method: 'POST',
+        headers: resetToken ? { 'x-dink-reset-token': resetToken } : {},
+        body: JSON.stringify({}),
+      });
+    }
+    const seeded = seedState();
+    writeState(seeded, 'reset');
+    getStorage()?.setItem(AUTH_KEY, 'user_local_player');
+    return seeded;
+  },
   resetLocalData() {
     const seeded = seedState();
     writeState(seeded, 'reset');

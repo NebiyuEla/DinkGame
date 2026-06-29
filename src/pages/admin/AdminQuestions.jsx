@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { CheckCircle, Plus, Save, Trash2 } from 'lucide-react';
+import readXlsxFile from 'read-excel-file/browser';
+import { CheckCircle, Download, FileSpreadsheet, Plus, Save, Trash2 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { appClient } from '@/api/appClient';
 
 const LABELS = ['A', 'B', 'C', 'D'];
 const inputClass = 'w-full bg-navy-dark border border-border rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-gold';
+const SAMPLE_TEMPLATE_URL = '/templates/dink-question-template.xlsx';
 
 const emptyQuestion = (gameId, orderIndex) => ({
   temp_id: `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -38,6 +40,18 @@ function normalizeQuestion(question, fallbackGameId, index) {
     order_index: Number(question.order_index ?? index),
   };
 }
+
+const normalizeHeader = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+const parseCorrectOption = (value, options) => {
+  const normalized = String(value || '').trim();
+  const upper = normalized.toUpperCase();
+  if (LABELS.includes(upper)) return upper;
+  const asNumber = Number(normalized);
+  if (Number.isFinite(asNumber) && asNumber >= 1 && asNumber <= options.length) return LABELS[asNumber - 1];
+  const byText = options.find(option => option.text.trim().toLowerCase() === normalized.toLowerCase());
+  return byText?.label || options[0]?.label || 'A';
+};
 
 export default function AdminQuestions() {
   const location = useLocation();
@@ -91,6 +105,68 @@ export default function AdminQuestions() {
     setDrafts(prev => [...prev, emptyQuestion(selectedGame, prev.length)]);
   };
 
+  const buildPayload = (question, index) => {
+    if (!question.text.trim()) throw new Error('Question text is required.');
+    const options = question.options.filter(option => option.text.trim()).slice(0, 4).map((option, optionIndex) => ({ label: LABELS[optionIndex], text: option.text.trim() }));
+    if (options.length < 3 || options.length > 4) throw new Error('Each question needs 3 or 4 answers.');
+    const correctOption = options.some(option => option.label === question.correct_option) ? question.correct_option : options[0].label;
+    return {
+      game_id: selectedGame,
+      text: question.text.trim(),
+      explanation: question.explanation || '',
+      image_url: question.image_url || '',
+      options,
+      correct_option: correctOption,
+      category: question.category || '',
+      difficulty: question.difficulty || 'medium',
+      time_limit: Number(question.time_limit || selectedGameRecord?.question_timer || 10),
+      order_index: Number(question.order_index ?? index),
+      is_active: true,
+    };
+  };
+
+  const handleExcelImport = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !selectedGame) return;
+    try {
+      const parsed = await readXlsxFile(file);
+      const rows = Array.isArray(parsed?.[0]?.data) ? parsed[0].data : parsed;
+      if (rows.length < 2) throw new Error('The Excel file needs a header row and at least one question.');
+      const header = rows[0].map(normalizeHeader);
+      const findIndex = (...names) => names.map(normalizeHeader).map(name => header.indexOf(name)).find(index => index >= 0);
+      const getCell = (row, ...names) => {
+        const index = findIndex(...names);
+        return index >= 0 ? String(row[index] ?? '').trim() : '';
+      };
+
+      const imported = rows.slice(1).map((row, rowIndex) => {
+        const options = [1, 2, 3, 4]
+          .map(number => getCell(row, `answer_${number}`, `option_${number}`, `choice_${number}`, LABELS[number - 1]))
+          .filter(Boolean)
+          .slice(0, 4)
+          .map((text, optionIndex) => ({ label: LABELS[optionIndex], text }));
+        if (!getCell(row, 'question', 'text') || options.length < 3) return null;
+        return normalizeQuestion({
+          ...emptyQuestion(selectedGame, drafts.length + rowIndex),
+          text: getCell(row, 'question', 'text'),
+          explanation: getCell(row, 'explanation', 'reason'),
+          options,
+          correct_option: parseCorrectOption(getCell(row, 'correct', 'correct_option', 'answer'), options),
+          time_limit: Number(getCell(row, 'time_limit', 'timer', 'seconds') || selectedGameRecord?.question_timer || 10),
+          category: getCell(row, 'category'),
+          difficulty: getCell(row, 'difficulty') || 'medium',
+          order_index: drafts.length + rowIndex,
+        }, selectedGame, drafts.length + rowIndex);
+      }).filter(Boolean);
+
+      if (imported.length === 0) throw new Error('No valid questions found. Use at least question, answer_1, answer_2, answer_3, and correct.');
+      setDrafts(prev => [...prev, ...imported]);
+    } catch (error) {
+      alert(error.message || 'Could not import Excel questions');
+    }
+  };
+
   const addOption = (key) => {
     setDrafts(prev => prev.map(item => {
       if ((item.id || item.temp_id) !== key || item.options.length >= 4) return item;
@@ -113,31 +189,9 @@ export default function AdminQuestions() {
 
   const saveQuestion = async (question, index) => {
     const key = question.id || question.temp_id;
-    if (!question.text.trim()) {
-      alert('Question text is required.');
-      return;
-    }
-    const options = question.options.filter(option => option.text.trim()).slice(0, 4).map((option, optionIndex) => ({ label: LABELS[optionIndex], text: option.text.trim() }));
-    if (options.length < 3 || options.length > 4) {
-      alert('Each question needs 3 or 4 answers.');
-      return;
-    }
-    const correctOption = options.some(option => option.label === question.correct_option) ? question.correct_option : options[0].label;
     setSavingId(key);
     try {
-      const payload = {
-        game_id: selectedGame,
-        text: question.text.trim(),
-        explanation: question.explanation || '',
-        image_url: question.image_url || '',
-        options,
-        correct_option: correctOption,
-        category: question.category || '',
-        difficulty: question.difficulty || 'medium',
-        time_limit: Number(question.time_limit || selectedGameRecord?.question_timer || 10),
-        order_index: Number(question.order_index ?? index),
-        is_active: true,
-      };
+      const payload = buildPayload(question, index);
       if (question.id) await appClient.entities.Question.update(question.id, payload);
       else await appClient.entities.Question.create(payload);
       const updated = await appClient.entities.Question.filter({ game_id: selectedGame, is_active: true }, 'order_index', 200);
@@ -145,6 +199,25 @@ export default function AdminQuestions() {
       await loadQuestions(selectedGame);
     } catch (error) {
       alert(error.message || 'Failed to save question');
+    }
+    setSavingId('');
+  };
+
+  const saveAllQuestions = async () => {
+    if (!drafts.length) return;
+    setSavingId('all');
+    try {
+      for (let index = 0; index < drafts.length; index += 1) {
+        const question = drafts[index];
+        const payload = buildPayload(question, index);
+        if (question.id) await appClient.entities.Question.update(question.id, payload);
+        else await appClient.entities.Question.create(payload);
+      }
+      const updated = await appClient.entities.Question.filter({ game_id: selectedGame, is_active: true }, 'order_index', 200);
+      await appClient.entities.Game.update(selectedGame, { total_questions: updated.length });
+      await loadQuestions(selectedGame);
+    } catch (error) {
+      alert(error.message || 'Failed to save questions');
     }
     setSavingId('');
   };
@@ -171,9 +244,21 @@ export default function AdminQuestions() {
             <h1 className="font-game text-xl font-black text-white">Questions</h1>
             <p className="text-muted-foreground text-sm">Build questions inline. Every question supports 3 or 4 answer choices.</p>
           </div>
-          <button onClick={addQuestion} disabled={!selectedGame} className="flex items-center gap-2 bg-primary text-white font-black px-4 py-2.5 rounded-full text-sm disabled:opacity-50">
-            <Plus size={16} /> Add Question
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <a href={SAMPLE_TEMPLATE_URL} download className="flex items-center gap-2 bg-navy-light text-muted-foreground font-black px-4 py-2.5 rounded-full text-sm">
+              <Download size={15} /> Sample
+            </a>
+            <label className="flex cursor-pointer items-center gap-2 bg-gold text-primary font-black px-4 py-2.5 rounded-full text-sm">
+              <FileSpreadsheet size={15} /> Import
+              <input type="file" accept=".xlsx,.xls" onChange={handleExcelImport} className="hidden" />
+            </label>
+            <button onClick={saveAllQuestions} disabled={!selectedGame || savingId === 'all'} className="flex items-center gap-2 bg-correct-green text-white font-black px-4 py-2.5 rounded-full text-sm disabled:opacity-50">
+              <Save size={15} /> {savingId === 'all' ? 'Saving' : 'Save All'}
+            </button>
+            <button onClick={addQuestion} disabled={!selectedGame} className="flex items-center gap-2 bg-primary text-white font-black px-4 py-2.5 rounded-full text-sm disabled:opacity-50">
+              <Plus size={16} /> Add
+            </button>
+          </div>
         </div>
 
         <section className="glass-card rounded-2xl p-4 border border-border/50">
@@ -266,7 +351,7 @@ export default function AdminQuestions() {
                       <div className="md:col-span-2">
                         <label className="block text-xs font-black text-muted-foreground mb-1">EXPLANATION</label>
                         <textarea value={question.explanation} onChange={e => updateDraft(key, { explanation: e.target.value })} rows={3}
-                          className={`${inputClass} resize-none`} placeholder="Shown only after admin reveals answer" />
+                          className={`${inputClass} resize-none`} placeholder="Shown on the explanation page" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-muted-foreground mb-1">TIME SEC</label>

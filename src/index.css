@@ -119,6 +119,14 @@
     border: 1px solid hsl(var(--border));
   }
 
+  .liquid-glass {
+    background: linear-gradient(145deg, hsl(var(--card) / 0.74), hsl(var(--card) / 0.48));
+    border: 1px solid hsl(0 0% 100% / 0.48);
+    box-shadow: 0 18px 42px rgba(0, 20, 81, 0.12), inset 0 1px 0 hsl(0 0% 100% / 0.52);
+    backdrop-filter: blur(18px) saturate(1.35);
+    -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  }
+
   /* Solid card */
   .glass-card-solid {
     background: hsl(var(--surface));

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Medal, Sparkles, Trophy } from 'lucide-react';
+import { Medal, Trophy, WalletCards } from 'lucide-react';
 import Confetti from '@/components/Confetti';
 import { LeaderboardSkeleton } from '@/components/LoadingSkeleton';
 import { useGame } from '@/lib/gameContext';
@@ -9,7 +9,7 @@ import { appClient } from '@/api/appClient';
 const CONGRATS_TEXT = '\u12a5\u1295\u12b3\u1295 \u12f0\u1235 \u12a0\u1208\u12ce\u1275';
 
 function WinnerAvatar({ user }) {
-  const initial = user?.full_name?.[0] || user?.username?.[0] || 'P';
+  const initial = user?.telegram_username?.[0] || user?.full_name?.[0] || user?.username?.[0] || 'D';
   return (
     <div className="w-11 h-11 rounded-full bg-primary/10 border border-primary/25 flex items-center justify-center overflow-hidden">
       {user?.photo_url
@@ -18,6 +18,12 @@ function WinnerAvatar({ user }) {
     </div>
   );
 }
+
+const displayName = (user, fallback) => {
+  if (user?.telegram_username) return `@${user.telegram_username}`;
+  if (user?.username) return user.username.startsWith('@') ? user.username : `@${user.username}`;
+  return user?.full_name || fallback || 'Dink user';
+};
 
 export default function Winners() {
   const { search } = useLocation();
@@ -89,8 +95,8 @@ export default function Winners() {
           <div className="relative overflow-hidden rounded-[1.7rem] bg-card border border-gold/35 p-5 text-center animate-bounce-in">
             <div className="absolute -left-8 top-5 w-20 h-20 rounded-full border-4 border-gold/20" />
             <div className="absolute right-4 bottom-4 w-3 h-3 rounded-full bg-gold" />
-            <Sparkles size={22} className="mx-auto text-gold mb-2" />
-            <p className="text-sm font-black text-foreground">{currentUser?.full_name || 'Player'}</p>
+            <WalletCards size={24} className="mx-auto text-gold mb-2" />
+            <p className="text-sm font-black text-foreground">{displayName(currentUser)}</p>
             <p className="font-amharic text-lg font-black text-foreground mt-1">{CONGRATS_TEXT}</p>
             <div className="mx-auto my-5 max-w-[14rem] rounded-[1.5rem] bg-primary p-5 text-white shadow-xl">
               <p className="text-[10px] font-black tracking-widest text-white/60">WALLET CREDIT</p>
@@ -131,8 +137,8 @@ export default function Winners() {
                   <div className="w-8 h-8 rounded-full bg-gold/15 text-gold flex items-center justify-center font-black text-sm">{index + 1}</div>
                   <WinnerAvatar user={user} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black text-foreground truncate">{user?.full_name || player.username || `Player ${index + 1}`}</p>
-                    <p className="text-xs text-muted-foreground">{player.total_score || 0} pts</p>
+                    <p className="text-sm font-black text-foreground truncate">{displayName(user, player.username || `Dink user ${index + 1}`)}</p>
+                    <p className="text-xs text-muted-foreground">Winner share</p>
                   </div>
                   <div className="text-right">
                     <p className="font-game text-primary font-black text-sm">{fmt(player.wallet_credit || player.prize_share)}</p>

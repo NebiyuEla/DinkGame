@@ -18,6 +18,23 @@ const isActivePlayer = (player) => (
   ['lobby', 'playing'].includes(player.status || 'lobby')
 );
 
+const displayName = (user) => {
+  if (user?.telegram_username) return `@${user.telegram_username}`;
+  if (user?.username) return user.username.startsWith('@') ? user.username : `@${user.username}`;
+  return user?.full_name || 'Dink user';
+};
+
+const uniqueActivePlayers = (players) => {
+  const seen = new Set();
+  return players.filter((player) => {
+    if (!isActivePlayer(player)) return false;
+    const key = player.user_id || player.username || player.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 export default function Lobby() {
   const navigate = useNavigate();
   const { currentGame, currentUser, gameStatus, setGameStatus, loadActiveGame } = useGame();
@@ -49,7 +66,7 @@ export default function Lobby() {
       return;
     }
 
-    const active = players.filter(isActivePlayer).length;
+    const active = uniqueActivePlayers(players).length;
     setPlayerCount(active);
     setMessages(chats);
     if (active !== game.total_players) {
@@ -68,17 +85,24 @@ export default function Lobby() {
         navigate('/');
         return;
       }
-      const existing = await appClient.entities.GamePlayer.filter({ game_id: currentGame.id, user_id: currentUser.id }, '-created_date', 1);
+      const existing = await appClient.entities.GamePlayer.filter({ game_id: currentGame.id, user_id: currentUser.id }, '-created_date', 20);
+      const [primary, ...duplicates] = existing;
+      await Promise.all(duplicates.map(row => appClient.entities.GamePlayer.update(row.id, {
+        status: 'disconnected',
+        is_eliminated: true,
+        disqualify_reason: 'Duplicate session closed',
+      })));
       if (existing.length === 0) {
         await appClient.entities.GamePlayer.create({
           game_id: currentGame.id,
           user_id: currentUser.id,
-          username: currentUser.full_name || currentUser.username || 'Player',
+          username: displayName(currentUser),
           joined_at: new Date().toISOString(),
           status: 'lobby',
         });
       } else {
-        await appClient.entities.GamePlayer.update(existing[0].id, {
+        await appClient.entities.GamePlayer.update(primary.id, {
+          username: displayName(currentUser),
           status: 'lobby',
           last_seen: new Date().toISOString(),
         });
@@ -107,7 +131,7 @@ export default function Lobby() {
     await appClient.entities.ChatMessage.create({
       game_id: currentGame.id,
       user_id: currentUser.id,
-      username: currentUser.full_name || currentUser.username || 'Player',
+      username: displayName(currentUser),
       message: text.slice(0, 120),
     });
     await loadLobby();
@@ -138,7 +162,7 @@ export default function Lobby() {
           <div className="flex-1 overflow-y-auto no-scrollbar space-y-1.5 pr-1">
             {messages.map((msg) => (
               <div key={msg.id} className={`text-sm leading-snug ${msg.is_system ? 'text-white/75 font-amharic' : 'text-white'}`}>
-                <span className="font-black text-white/70">{msg.username || 'Player'} </span>
+                <span className="font-black text-white/70">{msg.username || 'Dink user'} </span>
                 <span>{msg.message}</span>
               </div>
             ))}

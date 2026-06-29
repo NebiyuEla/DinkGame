@@ -66,7 +66,7 @@ export default function AdminAntiCheat() {
   const openActions = (log) => {
     setActiveLogId(activeLogId === log.id ? '' : log.id);
     setReason(log.details || 'Suspicious activity during live game');
-    setMessage('Fair-play issue detected. You cannot continue answering unless admin clears it.');
+    setMessage('Suspicious activity detected. You can watch, but you cannot answer in this game.');
   };
 
   const sendOverlay = async (log) => {
@@ -102,7 +102,7 @@ export default function AdminAntiCheat() {
         await appClient.entities.GameBan.create({
           game_id: log.game_id,
           user_id: log.user_id,
-          username: log.username || 'Player',
+          username: log.username || 'Dink user',
           reason: reason.trim(),
           is_active: true,
         });
@@ -139,7 +139,7 @@ export default function AdminAntiCheat() {
     <AdminLayout>
       <div className="space-y-5">
         <div>
-          <p className="text-xs text-gold font-black tracking-widest">FAIR PLAY SECURITY</p>
+          <p className="text-xs text-gold font-black tracking-widest">GAME SECURITY</p>
           <h1 className="font-game text-xl font-black text-white flex items-center gap-2">
             <Shield size={20} className="text-gold" /> Anti-Cheat Center
           </h1>
