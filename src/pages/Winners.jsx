@@ -1,20 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Medal, Trophy, WalletCards } from 'lucide-react';
-import Confetti from '@/components/Confetti';
 import { LeaderboardSkeleton } from '@/components/LoadingSkeleton';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
 
-const CONGRATS_TEXT = '\u12a5\u1295\u12b3\u1295 \u12f0\u1235 \u12a0\u1208\u12ce\u1275';
-
 function WinnerAvatar({ user }) {
   const initial = user?.telegram_username?.[0] || user?.full_name?.[0] || user?.username?.[0] || 'D';
   return (
-    <div className="w-11 h-11 rounded-full bg-primary/10 border border-primary/25 flex items-center justify-center overflow-hidden">
+    <div className="w-11 h-11 rounded-full bg-white/10 border border-white/10 flex items-center justify-center overflow-hidden">
       {user?.photo_url
         ? <img src={user.photo_url} className="w-full h-full object-cover" alt="" />
-        : <span className="text-sm font-black text-primary uppercase">{initial}</span>}
+        : <span className="text-sm font-black text-gold uppercase">{initial}</span>}
     </div>
   );
 }
@@ -72,17 +69,15 @@ export default function Winners() {
   const totalPaid = players.reduce((sum, player) => sum + Number(player.wallet_credit || player.prize_share || 0), 0);
 
   return (
-    <div className="min-h-screen bg-background pb-24" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <Confetti active={Boolean(myWin)} />
-
-      <header className="px-4 pt-4 pb-3 bg-card border-b border-border">
+    <div className="min-h-screen player-page pb-24 text-white" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <header className="px-4 pt-4 pb-3 bg-navy-dark/75 border-b border-white/10 backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-game text-xl font-black text-foreground flex items-center gap-2">
+            <h1 className="font-game text-xl font-black text-white flex items-center gap-2">
               <Trophy size={19} className="text-gold" />
               Winners
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">{game?.title || 'Wallet payouts after games end'}</p>
+            <p className="text-xs text-white/60 mt-0.5">{game?.title || 'Wallet payouts after games end'}</p>
           </div>
           <div className="w-10 h-10 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center">
             <Medal size={18} className="text-gold" />
@@ -92,40 +87,46 @@ export default function Winners() {
 
       {myWin && (
         <section className="px-4 pt-4">
-          <div className="relative overflow-hidden rounded-[1.7rem] bg-card border border-gold/35 p-5 text-center animate-bounce-in">
-            <div className="absolute -left-8 top-5 w-20 h-20 rounded-full border-4 border-gold/20" />
-            <div className="absolute right-4 bottom-4 w-3 h-3 rounded-full bg-gold" />
+          <div className="relative overflow-hidden rounded-[1.7rem] liquid-glass border border-gold/35 p-5 text-center animate-bounce-in">
             <WalletCards size={24} className="mx-auto text-gold mb-2" />
-            <p className="text-sm font-black text-foreground">{displayName(currentUser)}</p>
-            <p className="font-amharic text-lg font-black text-foreground mt-1">{CONGRATS_TEXT}</p>
-            <div className="mx-auto my-5 max-w-[14rem] rounded-[1.5rem] bg-primary p-5 text-white shadow-xl">
+            <p className="text-sm font-black text-white">{displayName(currentUser)}</p>
+            <p className="text-lg font-black text-white mt-1">Your winnings are ready</p>
+            <div className="mx-auto my-5 max-w-[14rem] rounded-[1.5rem] bg-white/10 border border-white/10 p-5 text-white shadow-xl">
               <p className="text-[10px] font-black tracking-widest text-white/60">WALLET CREDIT</p>
-              <p className="font-game text-4xl font-black mt-1">{fmt(myWin.wallet_credit || myWin.prize_share)}</p>
+              <p className="font-game text-4xl font-black mt-1 text-gold">{fmt(myWin.wallet_credit || myWin.prize_share)}</p>
             </div>
-            <p className="text-xs text-muted-foreground">The amount has been added to your wallet. Telebirr withdrawal starts from 100 ETB.</p>
+            <p className="text-xs text-white/60">The amount has been added to your wallet. Telebirr withdrawal starts from 100 ETB.</p>
           </div>
         </section>
       )}
 
       <section className="px-4 pt-4">
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-card rounded-2xl p-4 border border-border">
-            <p className="text-[10px] font-black text-muted-foreground tracking-widest">WINNERS</p>
-            <p className="font-game text-2xl font-black text-foreground mt-1">{players.length}</p>
+          <div className="liquid-glass rounded-2xl p-4">
+            <p className="text-[10px] font-black text-white/50 tracking-widest">GAME FINISHED</p>
+            <p className="font-game text-xl font-black text-white mt-1">{game?.title || 'Latest game'}</p>
           </div>
-          <div className="bg-card rounded-2xl p-4 border border-border">
-            <p className="text-[10px] font-black text-muted-foreground tracking-widest">PAID OUT</p>
-            <p className="font-game text-2xl font-black text-primary mt-1">{fmt(totalPaid)}</p>
+          <div className="liquid-glass rounded-2xl p-4">
+            <p className="text-[10px] font-black text-white/50 tracking-widest">TOTAL WINNERS</p>
+            <p className="font-game text-2xl font-black text-white mt-1">{players.length}</p>
+          </div>
+          <div className="liquid-glass rounded-2xl p-4">
+            <p className="text-[10px] font-black text-white/50 tracking-widest">PRIZE POOL</p>
+            <p className="font-game text-2xl font-black text-gold mt-1">{fmt(game?.prize_amount || totalPaid)}</p>
+          </div>
+          <div className="liquid-glass rounded-2xl p-4">
+            <p className="text-[10px] font-black text-white/50 tracking-widest">YOUR WINNINGS</p>
+            <p className="font-game text-2xl font-black text-gold mt-1">{fmt(myWin?.wallet_credit || myWin?.prize_share || 0)}</p>
           </div>
         </div>
 
         {loading ? (
           <LeaderboardSkeleton />
         ) : players.length === 0 ? (
-          <div className="bg-card rounded-2xl border border-border p-8 text-center">
-            <Trophy size={42} className="text-muted-foreground/25 mx-auto mb-3" />
-            <p className="font-bold text-foreground">No winners yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Winners appear after the game ends.</p>
+          <div className="liquid-glass rounded-2xl p-8 text-center">
+            <Trophy size={42} className="text-white/25 mx-auto mb-3" />
+            <p className="font-bold text-white">No winners yet</p>
+            <p className="text-sm text-white/[0.55] mt-1">Winners appear after the game ends.</p>
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -133,16 +134,16 @@ export default function Winners() {
               const user = userMap[player.user_id];
               const isMe = player.user_id === currentUser?.id;
               return (
-                <div key={player.id} className={`bg-card rounded-2xl p-4 border flex items-center gap-3 ${isMe ? 'border-primary/35 bg-primary/5' : 'border-border'}`}>
+                <div key={player.id} className={`liquid-glass rounded-2xl p-4 border flex items-center gap-3 ${isMe ? 'border-gold/35' : 'border-white/10'}`}>
                   <div className="w-8 h-8 rounded-full bg-gold/15 text-gold flex items-center justify-center font-black text-sm">{index + 1}</div>
                   <WinnerAvatar user={user} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black text-foreground truncate">{displayName(user, player.username || `Dink user ${index + 1}`)}</p>
-                    <p className="text-xs text-muted-foreground">Winner share</p>
+                    <p className="text-sm font-black text-white truncate">{displayName(user, player.username || `Dink user ${index + 1}`)}</p>
+                    <p className="text-xs text-white/[0.55]">Winner share</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-game text-primary font-black text-sm">{fmt(player.wallet_credit || player.prize_share)}</p>
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-1 justify-end">
+                    <p className="font-game text-gold font-black text-sm">{fmt(player.wallet_credit || player.prize_share)}</p>
+                    <p className="text-[10px] text-white/[0.45] flex items-center gap-1 justify-end">
                       <img src="/brand/etb-coin-small.webp" alt="" className="w-3 h-3 object-contain" loading="lazy" decoding="async" />
                       wallet
                     </p>

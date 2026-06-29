@@ -47,9 +47,16 @@ export default function AdminLayout({ children }) {
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {NAV.map(({ path, icon: Icon, label }) => {
             const active = pathname === path;
+            const featured = path === '/admin/live';
             return (
               <Link key={path} to={path} onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${active ? 'gradient-purple-blue text-white' : 'text-muted-foreground hover:text-white hover:bg-navy-light'}`}>
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
+                  active
+                    ? 'bg-gold text-navy-dark shadow-[0_10px_22px_hsl(var(--gold)/0.18)]'
+                    : featured
+                      ? 'border border-gold/25 bg-gold/10 text-gold hover:bg-gold hover:text-navy-dark'
+                      : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                }`}>
                 <Icon size={16} />
                 <span className="text-sm font-bold">{label}</span>
               </Link>

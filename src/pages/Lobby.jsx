@@ -6,9 +6,9 @@ import { appClient } from '@/api/appClient';
 import BrandMascot from '@/components/BrandMascot';
 
 const WAITING_LINES = [
-  '\u1328\u12cb\u1273\u12cd \u120a\u1300\u121d\u122d \u1290\u12cd',
-  '\u1294\u1275\u12ce\u122d\u12ae \u12a0\u122a\u134d \u1218\u1206\u1291\u1295 \u12eb\u1228\u130b\u130d\u1321',
-  '\u1328\u12cb\u1273\u12cd \u12a8\u1270\u1300\u1218\u1228 \u1260\u128b\u120b \u1218\u12cd\u1323\u1275 \u12a0\u12ed\u127b\u120d\u121d',
+  'Waiting for the game to start',
+  'Keep your network stable',
+  'Stay in the mini app when the game goes live',
 ];
 
 const isActivePlayer = (player) => (
@@ -138,30 +138,46 @@ export default function Lobby() {
   };
 
   return (
-    <div className="min-h-screen dink-orange-field text-white overflow-hidden flex flex-col">
+    <div className="min-h-screen player-page text-white overflow-hidden flex flex-col">
       <div className="px-4 pt-4 pb-2 flex items-center justify-end relative z-10">
-        <div className="flex items-center gap-2 rounded-full bg-white/20 px-3 py-2 backdrop-blur">
+        <div className="flex items-center gap-2 rounded-full bg-white/10 border border-white/[0.12] px-3 py-2 backdrop-blur">
           <Users size={16} />
           <span className="font-black">{playerCount.toLocaleString()}</span>
         </div>
       </div>
 
-      <section className="relative z-10 px-5 pt-2 text-center flex-shrink-0">
-        <p className="font-amharic text-2xl font-bold leading-relaxed drop-shadow-sm min-h-[4.5rem] flex items-center justify-center">
-          {activeNotice}
-        </p>
-        <BrandMascot className="w-64 h-64 object-contain mx-auto animate-float" />
+      <section className="relative z-10 px-5 pt-6 text-center flex-shrink-0">
+        <div className="liquid-glass rounded-[2rem] p-5">
+          <p className="text-xs font-black text-gold tracking-[0.22em]">LIVE LOBBY</p>
+          <h1 className="mt-3 text-3xl font-black">Waiting Room</h1>
+          <p className="mt-3 text-sm font-semibold text-white/[0.68] min-h-10 flex items-center justify-center">
+            {activeNotice}
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-left">
+            <div className="rounded-2xl bg-white/[0.08] border border-white/10 p-3">
+              <p className="text-[10px] font-black tracking-widest text-white/50">PLAYERS</p>
+              <p className="text-2xl font-black">{playerCount.toLocaleString()}</p>
+            </div>
+            <div className="rounded-2xl bg-white/[0.08] border border-white/10 p-3">
+              <p className="text-[10px] font-black tracking-widest text-white/50">PRIZE POOL</p>
+              <p className="text-2xl font-black text-gold">
+                ETB {Number(currentGame?.prize_amount || 0).toLocaleString('en-ET')}
+              </p>
+            </div>
+          </div>
+        </div>
+        <BrandMascot className="w-28 h-28 object-contain mx-auto mt-5 opacity-95" small />
       </section>
 
       <section className="relative z-10 mt-auto px-4 pb-4">
-        <div className="rounded-[1.5rem] bg-white/10 border border-white/20 backdrop-blur p-3 h-56 flex flex-col">
-          <div className="flex items-center gap-2 mb-2 text-white/85">
+        <div className="rounded-[1.5rem] liquid-glass p-3 h-64 flex flex-col">
+          <div className="flex items-center gap-2 mb-2 text-white/[0.85]">
             <MessageCircle size={15} />
             <span className="text-xs font-black tracking-widest">LIVE CHAT</span>
           </div>
           <div className="flex-1 overflow-y-auto no-scrollbar space-y-1.5 pr-1">
             {messages.map((msg) => (
-              <div key={msg.id} className={`text-sm leading-snug ${msg.is_system ? 'text-white/75 font-amharic' : 'text-white'}`}>
+              <div key={msg.id} className={`text-sm leading-snug ${msg.is_system ? 'text-gold/85' : 'text-white'}`}>
                 <span className="font-black text-white/70">{msg.username || 'Dink user'} </span>
                 <span>{msg.message}</span>
               </div>
@@ -173,10 +189,10 @@ export default function Lobby() {
               value={chatText}
               onChange={event => setChatText(event.target.value)}
               maxLength={120}
-              className="min-w-0 flex-1 rounded-full bg-white/90 text-primary px-4 py-3 text-sm font-semibold outline-none"
+              className="min-w-0 flex-1 rounded-full dark-input px-4 py-3 text-sm font-semibold outline-none"
               placeholder="Type message"
             />
-            <button className="w-12 h-12 rounded-full bg-white text-primary flex items-center justify-center active:scale-95 transition-transform">
+            <button className="w-12 h-12 rounded-full gold-action flex items-center justify-center active:scale-95 transition-transform">
               <Send size={18} />
             </button>
           </form>

@@ -21,10 +21,6 @@ import Winners from './pages/Winners';
 import Profile from './pages/Profile';
 import Deposit from './pages/Deposit';
 import Tasks from './pages/Tasks';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
 
 // Admin routes
 import AdminLogin from './pages/admin/AdminLogin';
@@ -133,11 +129,11 @@ const AuthenticatedApp = () => {
         <Route path="/admin/settings" element={<AdminGuard><AdminSettings /></AdminGuard>} />
         <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
 
-        {/* Auth routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        {/* Player auth is handled by Telegram Mini App identity. */}
+        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/register" element={<Navigate to="/" replace />} />
+        <Route path="/forgot-password" element={<Navigate to="/" replace />} />
+        <Route path="/reset-password" element={<Navigate to="/" replace />} />
 
         {/* User routes */}
         <Route element={<PlayerRoute />}>

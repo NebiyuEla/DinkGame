@@ -103,7 +103,7 @@ export default function AdminDashboard() {
             <h1 className="font-game text-2xl font-black text-white mt-1">Dashboard</h1>
             <p className="text-muted-foreground text-sm">Live game, wallet, payout, and security overview.</p>
           </div>
-          <a href="/admin/live" className="hidden sm:flex items-center gap-2 bg-primary text-white font-black px-4 py-2.5 rounded-full text-sm">
+          <a href="/admin/live" className="hidden sm:flex items-center gap-2 bg-gold text-navy-dark font-black px-4 py-2.5 rounded-full text-sm shadow-[0_12px_26px_hsl(var(--gold)/0.2)]">
             <Activity size={15} />
             Live Controller
           </a>
@@ -138,7 +138,7 @@ export default function AdminDashboard() {
                   <div className="min-w-0">
                     <p className="text-sm font-black text-white truncate">{game.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {game.is_paid ? `${fmt(game.entry_fee)} entry` : 'Free to play'} · {game.total_questions || 0} questions
+                      {game.is_paid ? `${fmt(game.entry_fee)} entry` : 'Free to play'} - {game.total_questions || 0} questions
                     </p>
                   </div>
                   <span className={`text-xs font-black uppercase ${statusColor[game.status] || 'text-muted-foreground'}`}>{game.status}</span>
@@ -163,7 +163,7 @@ export default function AdminDashboard() {
                 <div key={deposit.id} className="flex items-center justify-between p-4">
                   <div>
                     <p className="text-sm font-black text-white">{fmt(deposit.amount)}</p>
-                    <p className="text-xs text-muted-foreground">{deposit.provider || 'chapa'} · {deposit.purpose || 'wallet'}</p>
+                    <p className="text-xs text-muted-foreground">{deposit.provider || 'chapa'} - {deposit.purpose || 'wallet'}</p>
                   </div>
                   <span className={`text-xs font-black uppercase ${deposit.status === 'paid' ? 'text-correct-green' : 'text-yellow-400'}`}>{deposit.status}</span>
                 </div>

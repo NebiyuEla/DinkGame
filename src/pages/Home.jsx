@@ -108,19 +108,19 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="px-4 pt-3 pb-3 bg-card border-b border-border">
+    <div className="min-h-screen player-page pb-28 text-white" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="px-4 pt-3 pb-3 bg-navy-dark/75 border-b border-white/10 backdrop-blur-xl">
         <div className="flex items-center justify-between gap-3">
           <DinkLogo size="sm" />
           <div className="flex items-center gap-2">
-            <div className="h-9 px-3 rounded-full bg-primary text-white flex items-center gap-2">
+            <div className="h-9 px-3 rounded-full bg-white/10 border border-white/[0.12] text-white flex items-center gap-2">
               <img src="/brand/etb-coin-small.webp" alt="" className="w-5 h-5 object-contain" loading="eager" decoding="async" />
               <span className="font-black text-xs">{fmt(walletBalance)}</span>
             </div>
-            <Link to="/profile" className="w-9 h-9 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center overflow-hidden">
+            <Link to="/profile" className="w-9 h-9 rounded-full bg-gold/15 border border-gold/40 flex items-center justify-center overflow-hidden">
               {currentUser?.photo_url
                 ? <img src={currentUser.photo_url} className="w-full h-full object-cover" alt="" />
-                : <span className="text-xs font-black text-primary">{(currentUser?.full_name || 'P')[0]?.toUpperCase()}</span>}
+                : <span className="text-xs font-black text-gold">{(currentUser?.full_name || 'P')[0]?.toUpperCase()}</span>}
             </Link>
           </div>
         </div>
@@ -132,25 +132,25 @@ export default function Home() {
             <><GameCardSkeleton /><GameCardSkeleton /></>
           ) : (
             <>
-              <section className="rounded-[1.75rem] bg-card border border-border overflow-hidden shadow-sm">
+              <section className="rounded-[1.75rem] liquid-glass overflow-hidden">
                 <div className="p-4 pb-3 flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`w-2.5 h-2.5 rounded-full ${gameStatus === 'live' ? 'bg-correct-green' : gameStatus === 'lobby' ? 'bg-gold' : 'bg-muted-foreground/30'} animate-live-pulse`} />
-                      <span className="text-[11px] font-black tracking-widest text-primary">
+                      <span className="text-[11px] font-black tracking-widest text-gold">
                         {gameStatus === 'live' ? 'LIVE GAME' : gameStatus === 'lobby' ? 'WAITING ROOM' : 'NEXT GAME'}
                       </span>
                     </div>
-                    <h1 className="text-2xl font-black text-foreground leading-tight">{displayGame?.title || 'No coming games'}</h1>
+                    <h1 className="text-2xl font-black text-white leading-tight">{displayGame?.title || 'No coming games'}</h1>
                     {(isPaid || prizePool > 0) && (
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-xs text-white/[0.62] mt-1">
                         {isPaid ? `${fmt(entryFee)} entry` : ''}
                         {isPaid && prizePool > 0 ? ' - ' : ''}
                         {prizePool > 0 ? `${fmt(prizePool)} prize pool` : ''}
                       </p>
                     )}
                   </div>
-                  <BrandMascot className="w-20 h-20 object-contain flex-shrink-0" small />
+                  <BrandMascot className="w-16 h-16 object-contain flex-shrink-0" small />
                 </div>
 
                 {displayGame?.scheduled_at && gameStatus !== 'lobby' && gameStatus !== 'live' && (
@@ -159,31 +159,31 @@ export default function Home() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 border-t border-border">
+                <div className="grid grid-cols-3 border-t border-white/10 bg-white/[0.03]">
                   <div className="p-3 text-center">
-                    <Users size={16} className="mx-auto text-primary mb-1" />
-                    <p className="text-lg font-black text-foreground">{activePlayerCount}</p>
-                    <p className="text-[10px] text-muted-foreground font-bold">Players</p>
+                    <Users size={16} className="mx-auto text-gold mb-1" />
+                    <p className="text-lg font-black text-white">{activePlayerCount}</p>
+                    <p className="text-[10px] text-white/[0.55] font-bold">Players</p>
                   </div>
-                  <div className="p-3 text-center border-x border-border">
+                  <div className="p-3 text-center border-x border-white/10">
                     <Trophy size={16} className="mx-auto text-gold mb-1" />
-                    <p className="text-lg font-black text-foreground">{fmt(prizePool)}</p>
-                    <p className="text-[10px] text-muted-foreground font-bold">Prize</p>
+                    <p className="text-lg font-black text-white">{fmt(prizePool)}</p>
+                    <p className="text-[10px] text-white/[0.55] font-bold">Prize</p>
                   </div>
                   <div className="p-3 text-center">
-                    <ShieldCheck size={16} className="mx-auto text-primary mb-1" />
-                    <p className="text-lg font-black text-foreground">{displayGame?.question_timer || 10}s</p>
-                    <p className="text-[10px] text-muted-foreground font-bold">Timer</p>
+                    <ShieldCheck size={16} className="mx-auto text-gold mb-1" />
+                    <p className="text-lg font-black text-white">{displayGame?.question_timer || 10}s</p>
+                    <p className="text-[10px] text-white/[0.55] font-bold">Timer</p>
                   </div>
                 </div>
               </section>
 
               {prizePool > 0 && (
-                <section className="rounded-3xl bg-primary text-white p-4 flex items-center gap-4">
+                <section className="rounded-3xl liquid-glass p-4 flex items-center gap-4">
                   <img src="/brand/etb-coin.webp" alt="" className="w-16 h-16 object-contain flex-shrink-0" loading="lazy" decoding="async" />
                   <div className="min-w-0">
-                    <p className="text-xs font-black text-white/70 tracking-widest mb-2">TODAY'S PRIZE</p>
-                    <p className="text-3xl font-black">{fmt(prizePool)}</p>
+                    <p className="text-xs font-black text-gold tracking-widest mb-2">TODAY'S PRIZE</p>
+                    <p className="text-3xl font-black text-white">{fmt(prizePool)}</p>
                     <p className="text-sm text-white/75 mt-1">
                       All players still in the game at the end split the prize equally into their wallet.
                     </p>
@@ -195,46 +195,46 @@ export default function Home() {
                 <button
                   onClick={handleJoinGame}
                   disabled={joining}
-                  className="w-full h-14 rounded-full bg-gold text-primary font-black text-base active:scale-[0.98] transition-transform shadow-[0_12px_24px_hsl(var(--gold)/0.24)] disabled:opacity-60"
+                  className="w-full h-14 rounded-full gold-action font-black text-base active:scale-[0.98] transition-transform disabled:opacity-60"
                 >
                   {joining ? 'Checking wallet...' : gameStatus === 'live' ? 'Open Game' : isPaid ? `Join for ${fmt(entryFee)}` : 'Enter Waiting Room'}
                 </button>
               )}
 
               <div className="grid grid-cols-2 gap-2">
-                <Link to="/tasks" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                    <ListChecks size={16} className="text-primary" />
+                <Link to="/tasks" className="rounded-2xl liquid-glass px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
+                  <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+                    <ListChecks size={16} className="text-gold" />
                   </div>
-                  <span className="text-sm font-black text-foreground">Tasks</span>
+                  <span className="text-sm font-black text-white">Tasks</span>
                 </Link>
-                <Link to="/winners" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
+                <Link to="/winners" className="rounded-2xl liquid-glass px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
                   <div className="w-9 h-9 rounded-full bg-gold/15 flex items-center justify-center">
                     <Trophy size={16} className="text-gold" />
                   </div>
-                  <span className="text-sm font-black text-foreground">Winners</span>
+                  <span className="text-sm font-black text-white">Winners</span>
                 </Link>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <a href="https://www.tiktok.com/@DinkGame" target="_blank" rel="noreferrer" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Music2 size={16} className="text-primary" />
+                <a href="https://www.tiktok.com/@DinkGame" target="_blank" rel="noreferrer" className="rounded-2xl liquid-glass px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
+                  <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+                    <Music2 size={16} className="text-gold" />
                   </div>
-                  <span className="text-sm font-black text-foreground">TikTok @DinkGame</span>
+                  <span className="text-sm font-black text-white">TikTok @DinkGame</span>
                 </a>
-                <a href="https://www.youtube.com/@DinkGame" target="_blank" rel="noreferrer" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
+                <a href="https://www.youtube.com/@DinkGame" target="_blank" rel="noreferrer" className="rounded-2xl liquid-glass px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
                   <div className="w-9 h-9 rounded-full bg-gold/15 flex items-center justify-center">
                     <Youtube size={16} className="text-gold" />
                   </div>
-                  <span className="text-sm font-black text-foreground">YouTube @DinkGame</span>
+                  <span className="text-sm font-black text-white">YouTube @DinkGame</span>
                 </a>
               </div>
 
               {!displayGame && (
-                <div className="rounded-2xl bg-card border border-border p-4 flex gap-3">
-                  <Clock3 size={18} className="text-muted-foreground flex-shrink-0" />
-                  <p className="text-sm text-muted-foreground">No coming games</p>
+                <div className="rounded-2xl liquid-glass p-4 flex gap-3">
+                  <Clock3 size={18} className="text-white/[0.55] flex-shrink-0" />
+                  <p className="text-sm text-white/[0.65]">No coming games</p>
                 </div>
               )}
             </>

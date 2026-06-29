@@ -166,7 +166,7 @@ export default function AdminGames() {
             <h1 className="font-game text-xl font-black text-white">Games</h1>
             <p className="text-muted-foreground text-sm">Create a free or paid Telegram game without leaving this page.</p>
           </div>
-          <button onClick={openCreate} className="flex items-center gap-2 bg-primary text-white font-black px-4 py-2.5 rounded-full text-sm">
+          <button onClick={openCreate} className="flex items-center gap-2 bg-gold text-navy-dark font-black px-4 py-2.5 rounded-full text-sm">
             <Plus size={16} /> New Game
           </button>
         </div>
@@ -200,8 +200,8 @@ export default function AdminGames() {
               <div>
                 <label className="block text-xs font-black text-muted-foreground mb-1">ENTRY</label>
                 <div className="grid grid-cols-2 gap-1 bg-navy-dark border border-border rounded-xl p-1">
-                  <button onClick={() => handleField('is_paid', false)} className={`rounded-lg py-2 text-xs font-black ${!form.is_paid ? 'bg-gold text-primary' : 'text-muted-foreground'}`}>Free</button>
-                  <button onClick={() => handleField('is_paid', true)} className={`rounded-lg py-2 text-xs font-black ${form.is_paid ? 'bg-gold text-primary' : 'text-muted-foreground'}`}>Paid</button>
+                  <button onClick={() => handleField('is_paid', false)} className={`rounded-lg py-2 text-xs font-black ${!form.is_paid ? 'bg-gold text-navy-dark' : 'text-muted-foreground'}`}>Free</button>
+                  <button onClick={() => handleField('is_paid', true)} className={`rounded-lg py-2 text-xs font-black ${form.is_paid ? 'bg-gold text-navy-dark' : 'text-muted-foreground'}`}>Paid</button>
                 </div>
               </div>
               <div>
@@ -237,7 +237,7 @@ export default function AdminGames() {
 
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setFormOpen(false)} className="px-4 py-2.5 rounded-full bg-navy-light text-muted-foreground font-bold text-sm">Cancel</button>
-              <button onClick={saveGame} disabled={saving} className="px-5 py-2.5 rounded-full bg-primary text-white font-black text-sm flex items-center gap-2 disabled:opacity-50">
+              <button onClick={saveGame} disabled={saving} className="px-5 py-2.5 rounded-full bg-gold text-navy-dark font-black text-sm flex items-center gap-2 disabled:opacity-50">
                 <Save size={15} />
                 {saving ? 'Saving' : 'Save Game'}
               </button>

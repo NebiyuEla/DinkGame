@@ -11,8 +11,10 @@ export default function SplashScreen({ onDone }) {
   }, [onDone]);
 
   return (
-    <div className={`fixed inset-0 z-[9999] dink-orange-field flex flex-col items-center justify-center transition-opacity duration-500 ${hiding ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-      <DinkLogo transparent size="xl" className="rounded-none shadow-none animate-splash" />
+    <div className={`fixed inset-0 z-[9999] player-page flex flex-col items-center justify-center transition-opacity duration-500 ${hiding ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+      <div className="liquid-glass rounded-[2rem] p-7 animate-splash">
+        <DinkLogo transparent size="xl" className="rounded-none shadow-none" />
+      </div>
     </div>
   );
 }

@@ -297,10 +297,10 @@ export default function LiveGame() {
     if (showExplanation) {
       if (option.label === revealedCorrect) return 'bg-correct-green text-white border-correct-green';
       if (myAnswer === option.label && option.label !== revealedCorrect) return 'bg-wrong-red text-white border-wrong-red';
-      return 'bg-white/70 text-foreground border-white/60';
+      return 'bg-white/[0.78] text-navy-dark border-white/70';
     }
-    if (myAnswer === option.label) return 'bg-primary text-white border-primary';
-    return 'bg-white/90 text-foreground border-white/80 active:scale-[0.99]';
+    if (myAnswer === option.label) return 'bg-navy-dark text-white border-gold shadow-[0_12px_24px_rgba(0,17,70,0.28)]';
+    return 'bg-white/[0.92] text-navy-dark border-white/80 active:scale-[0.99]';
   };
 
   const resultLabel = answerResult === 'correct'
@@ -311,28 +311,29 @@ export default function LiveGame() {
 
   if (!question) {
     return (
-      <div className="min-h-screen dink-orange-field flex items-center justify-center px-6 text-white text-center">
-        <div>
-          <BrandMascot className="w-48 h-48 object-contain mx-auto animate-float" small />
+      <div className="min-h-screen player-page flex items-center justify-center px-6 text-white text-center">
+        <div className="liquid-glass rounded-[2rem] p-6">
+          <BrandMascot className="w-28 h-28 object-contain mx-auto" small />
+          <p className="mt-4 text-sm font-black text-white/[0.65]">Preparing live game</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen dink-orange-field flex flex-col overflow-hidden text-primary">
+    <div className="min-h-screen dink-orange-field flex flex-col overflow-hidden text-navy-dark">
       {showCorrectBurst && <CorrectBurst onDone={() => setShowCorrectBurst(false)} />}
 
       <header className="px-4 pt-3 pb-2 flex items-center justify-between text-white">
-        <div className="flex items-center gap-2 font-black">
+        <div className="flex items-center gap-2 font-black rounded-full bg-navy-dark/[0.45] border border-white/[0.15] px-3 py-2 backdrop-blur">
           <Users size={17} />
           <span>{activeCount.toLocaleString()}</span>
         </div>
-        <div className="relative w-16 h-16 rounded-full bg-white/90 border-4 border-white flex items-center justify-center shadow-lg">
+        <div className="relative w-16 h-16 rounded-full bg-white/[0.92] border-4 border-navy-dark/15 flex items-center justify-center shadow-lg">
           <div className="absolute inset-1 rounded-full border-2 border-gold/50" />
-          <span className={`text-3xl font-black ${timeLeft <= 3 ? 'text-wrong-red animate-shake' : 'text-primary'}`}>{timeLeft}</span>
+          <span className={`text-3xl font-black ${timeLeft <= 3 ? 'text-wrong-red animate-shake' : 'text-navy-dark'}`}>{timeLeft}</span>
         </div>
-        <div className="text-right max-w-[5.5rem]">
+        <div className="text-right max-w-[6.5rem] rounded-2xl bg-navy-dark/[0.45] border border-white/[0.15] px-3 py-2 backdrop-blur">
           <p className="text-[10px] font-black text-white/70">PRIZE</p>
           <p className="text-sm font-black truncate">{fmt(game?.prize_amount || 0)}</p>
         </div>
@@ -340,13 +341,13 @@ export default function LiveGame() {
 
       <main className="px-4 pt-2 flex-1 flex flex-col">
         {showExplanation ? (
-          <section className="dink-answer-card rounded-[1.6rem] p-4 mb-3 animate-slide-up">
+          <section className="dink-answer-card rounded-[1.6rem] p-4 mb-3 min-h-[26rem] animate-slide-up">
             {resultLabel && (
               <div className={`mx-auto mb-3 flex w-fit min-h-9 items-center justify-center rounded-full border px-4 text-lg font-black ${resultLabel.className}`}>
                 {resultLabel.text}
               </div>
             )}
-            <h1 className={`text-center text-lg leading-relaxed font-black text-foreground mb-4 ${amharicClass(question.text)}`}>
+            <h1 className={`text-center text-lg leading-relaxed font-black text-navy-dark mb-4 ${amharicClass(question.text)}`}>
               {question.text}
             </h1>
 
@@ -363,7 +364,7 @@ export default function LiveGame() {
                     className={`w-full rounded-2xl border-2 px-4 py-3 ${
                       isCorrect ? 'bg-correct-green text-white border-correct-green' :
                         isMine ? 'bg-wrong-red text-white border-wrong-red' :
-                          'bg-white/75 text-foreground border-white/70'
+                          'bg-white/75 text-navy-dark border-white/70'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -378,32 +379,37 @@ export default function LiveGame() {
               })}
             </div>
 
-            <div className="mt-4 rounded-2xl bg-white/75 border border-border p-4 text-center">
+            <div className="mt-4 rounded-2xl bg-white/[0.82] border border-white/60 p-4 text-center">
               <div className="flex items-center justify-center gap-2 mb-2">
-                <Eye size={15} className="text-primary" />
-                <p className="text-xs font-black text-primary">Explanation</p>
+                <Eye size={15} className="text-navy-dark" />
+                <p className="text-xs font-black text-navy-dark">Explanation</p>
               </div>
               {correctOption && (
-                <p className={`font-black text-foreground mb-2 ${amharicClass(correctOption.text)}`}>{correctOption.text}</p>
+                <p className={`font-black text-navy-dark mb-2 ${amharicClass(correctOption.text)}`}>{correctOption.text}</p>
               )}
               {question.explanation && (
-                <p className={`text-sm text-muted-foreground leading-relaxed ${amharicClass(question.explanation)}`}>
+                <p className={`text-sm text-navy-dark/70 leading-relaxed ${amharicClass(question.explanation)}`}>
                   {question.explanation}
                 </p>
               )}
             </div>
           </section>
         ) : (
-        <section className="dink-answer-card rounded-[1.6rem] p-4 mb-3">
+        <section className="dink-answer-card rounded-[1.6rem] p-4 mb-3 min-h-[26rem] flex flex-col">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-black text-muted-foreground">{game?.title}</p>
-            <p className="text-xs font-black text-primary">{questionIndex + 1}/{questions.length}</p>
+            <p className="text-xs font-black text-navy-dark/55">{game?.title}</p>
+            <p className="text-xs font-black text-navy-dark">Question {questionIndex + 1}/{questions.length}</p>
           </div>
-          <h1 className={`text-center text-xl leading-relaxed font-black text-foreground mb-4 ${amharicClass(question.text)}`}>
+          <h1 className={`text-center text-xl leading-relaxed font-black text-navy-dark mb-4 ${amharicClass(question.text)}`}>
             {question.text}
           </h1>
+          {myAnswer && (
+            <div className="mb-3 rounded-full bg-navy-dark text-white text-center py-2 text-xs font-black">
+              Answer locked
+            </div>
+          )}
 
-          <div className="space-y-2">
+          <div className="space-y-2 mt-5">
             {(question.options || []).slice(0, 4).map(option => {
               const count = optionStats[option.label] || 0;
               return (
@@ -424,8 +430,13 @@ export default function LiveGame() {
         )}
 
         {!myCanPlay && (
-          <div className="rounded-full bg-white/20 px-4 py-3 text-white text-center font-black mb-3">
-            Watching only
+          <div className="liquid-glass rounded-[1.5rem] px-4 py-4 text-white text-center font-black mb-3">
+            <BrandMascot className="w-20 h-20 object-contain mx-auto mb-2" small />
+            <p className="text-lg">You are out for this game</p>
+            <p className="text-sm text-white/[0.65] mt-1">You can still watch the game live</p>
+            <button className="mt-3 rounded-full gold-action px-5 py-2 text-sm font-black">
+              Continue Watching
+            </button>
           </div>
         )}
 

@@ -19,26 +19,26 @@ export default function WelcomeSplash({ user, onDone }) {
   }, [profile?.telegram_id, user?.id]);
 
   return (
-    <div className="fixed inset-0 z-[100] dink-orange-field flex items-center justify-center px-6 overflow-hidden">
-      <div className="w-full max-w-sm text-center animate-splash">
-        <div className="mx-auto w-28 h-28 rounded-full bg-white border-[5px] border-primary shadow-xl flex items-center justify-center">
-          <DinkLogo transparent size="lg" className="w-24 h-24 rounded-none shadow-none" />
+    <div className="fixed inset-0 z-[100] player-page flex items-center justify-center px-6 overflow-hidden">
+      <div className="w-full max-w-sm text-center animate-splash liquid-glass rounded-[2rem] p-5">
+        <div className="mx-auto w-24 h-24 rounded-[1.6rem] bg-gold border border-white/20 shadow-xl flex items-center justify-center">
+          <DinkLogo transparent size="lg" className="w-20 h-20 rounded-none shadow-none" />
         </div>
         <picture className="block mt-4">
           <source srcSet="/brand/welcome-message-small.webp" type="image/webp" />
           <img
             src="/brand/welcome-message.webp"
             alt=""
-            className="w-full max-h-36 object-contain rounded-[1.4rem] shadow-[0_14px_30px_rgba(0,20,81,0.18)]"
+            className="w-full max-h-32 object-contain rounded-[1.4rem] shadow-[0_18px_40px_rgba(0,0,0,0.24)]"
             loading="eager"
             decoding="async"
           />
         </picture>
-        <BrandMascot className="w-64 h-64 object-contain mx-auto mt-3 animate-float" small />
+        <BrandMascot className="w-36 h-36 object-contain mx-auto mt-3" small />
         <button
           onClick={onDone}
           disabled={saving}
-          className="mt-6 w-full rounded-full bg-white text-primary font-black py-4 active:scale-95 transition-transform disabled:opacity-60 shadow-[0_14px_30px_rgba(0,20,81,0.24)]"
+          className="mt-5 w-full rounded-full gold-action font-black py-4 active:scale-95 transition-transform disabled:opacity-60"
         >
           {saving ? 'Loading...' : 'Start'}
         </button>

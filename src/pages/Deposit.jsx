@@ -29,6 +29,14 @@ export default function Deposit() {
 
   const walletBalance = Number(currentUser?.wallet_balance || 0);
   const defaultPhone = currentUser?.telebirr_phone || currentUser?.phone || currentUser?.telegram_phone || '';
+  const mode = searchParams.get('mode') === 'withdraw' ? 'withdraw' : 'deposit';
+  const quickAmounts = [50, 100, 200, 500];
+  const setMode = (nextMode) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextMode === 'withdraw') nextParams.set('mode', 'withdraw');
+    else nextParams.delete('mode');
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const refresh = useCallback(async () => {
     if (!currentUser?.id) return;
@@ -181,23 +189,23 @@ export default function Deposit() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-8">
-      <div className="px-4 pt-4 pb-3 bg-card border-b border-border flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-          <ArrowLeft size={18} className="text-foreground" />
+    <div className="min-h-screen player-page pb-8 text-white">
+      <div className="px-4 pt-4 pb-3 bg-navy-dark/75 border-b border-white/10 backdrop-blur-xl flex items-center justify-between">
+        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+          <ArrowLeft size={18} className="text-white" />
         </button>
         <DinkLogo size="sm" />
         <div className="w-10" />
       </div>
 
       <div className="px-4 pt-4 space-y-3">
-        <section className="rounded-[1.75rem] bg-primary text-white p-5">
+        <section className="rounded-[1.75rem] liquid-glass p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-black text-white/60 tracking-widest">WALLET BALANCE</p>
               <p className="text-4xl font-black mt-1">{fmt(walletBalance)}</p>
             </div>
-            <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-white/10 border border-white/10 flex items-center justify-center">
               <img src="/brand/etb-coin-small.webp" alt="" className="w-12 h-12 object-contain" loading="eager" decoding="async" />
             </div>
           </div>
@@ -209,28 +217,57 @@ export default function Deposit() {
         </section>
 
         {message && (
-          <div className="rounded-2xl bg-card border border-border p-3 flex items-center gap-2">
-            <CheckCircle size={16} className="text-primary flex-shrink-0" />
-            <p className="text-sm font-semibold text-foreground">{message}</p>
+          <div className="rounded-2xl liquid-glass p-3 flex items-center gap-2">
+            <CheckCircle size={16} className="text-gold flex-shrink-0" />
+            <p className="text-sm font-semibold text-white">{message}</p>
           </div>
         )}
 
-        <form onSubmit={startDeposit} className="rounded-[1.5rem] bg-card border border-border p-4 space-y-3">
+        <div className="rounded-full bg-white/[0.08] border border-white/10 p-1 flex gap-1">
+          {[
+            ['deposit', 'Deposit'],
+            ['withdraw', 'Withdraw'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setMode(value)}
+              className={`flex-1 rounded-full py-3 text-sm font-black transition-colors ${mode === value ? 'gold-action' : 'text-white/[0.65]'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'deposit' && (
+        <form onSubmit={startDeposit} className="rounded-[1.5rem] liquid-glass p-4 space-y-3">
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 rounded-full bg-gold/15 flex items-center justify-center">
               <CreditCard size={18} className="text-gold" />
             </div>
             <div>
-              <h2 className="font-black text-foreground">Add money</h2>
-              <p className="text-xs text-muted-foreground">Secure checkout through Chapa</p>
+              <h2 className="font-black text-white">Add money</h2>
+              <p className="text-xs text-white/60">Secure checkout through Chapa</p>
             </div>
+          </div>
+          <div className="flex gap-2">
+            {quickAmounts.map(value => (
+              <button
+                type="button"
+                key={value}
+                onClick={() => setAmount(value)}
+                className={`flex-1 rounded-full border px-2 py-2 text-xs font-black ${Number(amount) === value ? 'bg-gold text-navy-dark border-gold' : 'border-white/10 bg-white/[0.08] text-white/70'}`}
+              >
+                {fmt(value)}
+              </button>
+            ))}
           </div>
           <input
             type="number"
             min="1"
             value={amount}
             onChange={e => setAmount(e.target.value)}
-            className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-lg font-black text-foreground outline-none focus:border-primary"
+            className="w-full rounded-2xl dark-input px-4 py-3 text-lg font-black outline-none focus:border-gold"
             placeholder="Amount"
           />
           <div className="flex gap-2">
@@ -239,11 +276,11 @@ export default function Deposit() {
               value={phone}
               onChange={e => setPhone(e.target.value)}
               disabled={phoneLocked && Boolean(defaultPhone)}
-              className="min-w-0 flex-1 rounded-2xl bg-muted border border-border px-4 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary disabled:opacity-80"
-              placeholder="Telebirr / phone number"
+              className="min-w-0 flex-1 rounded-2xl dark-input px-4 py-3 text-sm font-semibold outline-none focus:border-gold disabled:opacity-80"
+              placeholder="Phone number"
             />
             {defaultPhone && (
-              <button type="button" onClick={() => setPhoneLocked(false)} className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              <button type="button" onClick={() => setPhoneLocked(false)} className="w-12 h-12 rounded-full bg-white/10 text-gold flex items-center justify-center">
                 <Edit3 size={16} />
               </button>
             )}
@@ -252,27 +289,29 @@ export default function Deposit() {
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary"
+            className="w-full rounded-2xl dark-input px-4 py-3 text-sm font-semibold outline-none focus:border-gold"
             placeholder="Email optional"
           />
-          <button disabled={loading} className="w-full rounded-full bg-gold text-primary font-black py-4 active:scale-95 transition-transform disabled:opacity-60">
-            {loading ? 'Processing...' : `Pay ${fmt(amount)}`}
+          <button disabled={loading} className="w-full rounded-full gold-action font-black py-4 active:scale-95 transition-transform disabled:opacity-60">
+            {loading ? 'Processing...' : `Pay with Chapa - ${fmt(amount)}`}
           </button>
           {deposit && (
-            <button type="button" onClick={verifyDeposit} disabled={loading} className="w-full rounded-full bg-primary text-white font-black py-4 active:scale-95 transition-transform disabled:opacity-60">
+            <button type="button" onClick={verifyDeposit} disabled={loading} className="w-full rounded-full bg-white/10 text-white border border-white/10 font-black py-4 active:scale-95 transition-transform disabled:opacity-60">
               Verify Payment
             </button>
           )}
         </form>
+        )}
 
-        <form onSubmit={requestWithdrawal} className="rounded-[1.5rem] bg-card border border-border p-4 space-y-3">
+        {mode === 'withdraw' && (
+        <form onSubmit={requestWithdrawal} className="rounded-[1.5rem] liquid-glass p-4 space-y-3">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <Landmark size={18} className="text-primary" />
+            <div className="w-10 h-10 rounded-full bg-gold/15 flex items-center justify-center">
+              <Landmark size={18} className="text-gold" />
             </div>
             <div>
-              <h2 className="font-black text-foreground">Withdraw to Telebirr</h2>
-              <p className="text-xs text-muted-foreground">Minimum withdrawal is 100 ETB</p>
+              <h2 className="font-black text-white">Withdraw to Telebirr</h2>
+              <p className="text-xs text-white/60">Minimum withdrawal is 100 ETB</p>
             </div>
           </div>
           <input
@@ -280,7 +319,7 @@ export default function Deposit() {
             min="100"
             value={withdrawAmount}
             onChange={e => setWithdrawAmount(e.target.value)}
-            className="w-full rounded-2xl bg-muted border border-border px-4 py-3 text-lg font-black text-foreground outline-none focus:border-primary"
+            className="w-full rounded-2xl dark-input px-4 py-3 text-lg font-black outline-none focus:border-gold"
             placeholder="Amount"
           />
           <div className="flex gap-2">
@@ -289,31 +328,32 @@ export default function Deposit() {
               value={withdrawPhone}
               onChange={e => setWithdrawPhone(e.target.value)}
               disabled={withdrawPhoneLocked && Boolean(defaultPhone)}
-              className="min-w-0 flex-1 rounded-2xl bg-muted border border-border px-4 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary disabled:opacity-80"
-              placeholder="Telebirr phone"
+              className="min-w-0 flex-1 rounded-2xl dark-input px-4 py-3 text-sm font-semibold outline-none focus:border-gold disabled:opacity-80"
+              placeholder="Saved Telebirr number"
             />
             {defaultPhone && (
-              <button type="button" onClick={() => setWithdrawPhoneLocked(false)} className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              <button type="button" onClick={() => setWithdrawPhoneLocked(false)} className="w-12 h-12 rounded-full bg-white/10 text-gold flex items-center justify-center">
                 <Edit3 size={16} />
               </button>
             )}
           </div>
-          <button disabled={loading || walletBalance < 100} className="w-full rounded-full bg-primary text-white font-black py-4 active:scale-95 transition-transform disabled:opacity-50">
+          <button disabled={loading || walletBalance < 100} className="w-full rounded-full bg-white text-navy-dark font-black py-4 active:scale-95 transition-transform disabled:opacity-50">
             Request Withdrawal
           </button>
         </form>
+        )}
 
-        <section className="rounded-[1.5rem] bg-card border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
-            <p className="text-sm font-black text-foreground">Wallet history</p>
+        <section className="rounded-[1.5rem] liquid-glass overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/10">
+            <p className="text-sm font-black text-white">{mode === 'withdraw' ? 'Withdraw history' : 'Payment status'}</p>
           </div>
           {transactions.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">No wallet activity yet</p>
+            <p className="text-sm text-white/[0.55] text-center py-6">No wallet activity yet</p>
           ) : transactions.map(tx => (
-            <div key={tx.id} className="px-4 py-3 border-b border-border last:border-0 flex justify-between gap-3">
+            <div key={tx.id} className="px-4 py-3 border-b border-white/10 last:border-0 flex justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-foreground">{tx.note || tx.source}</p>
-                <p className="text-xs text-muted-foreground">{new Date(tx.created_date).toLocaleString()}</p>
+                <p className="text-sm font-bold text-white">{tx.note || tx.source}</p>
+                <p className="text-xs text-white/[0.45]">{new Date(tx.created_date).toLocaleString()}</p>
               </div>
               <p className={`text-sm font-black ${tx.type === 'debit' ? 'text-wrong-red' : 'text-correct-green'}`}>
                 {tx.type === 'debit' ? '-' : '+'}{fmt(tx.amount)}

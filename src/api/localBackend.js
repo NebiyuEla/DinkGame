@@ -21,6 +21,7 @@ const ENTITY_NAMES = [
 
 const nowIso = () => new Date().toISOString();
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const DATA_CLEAR_VERSION = '2026-06-29-clear-all-data';
 
 const safeBtoa = (value) => {
   if (typeof btoa === 'function') return btoa(value);
@@ -104,32 +105,10 @@ const remoteEntityApi = (entityName) => ({
 
 const seedState = () => {
   const created = nowIso();
-  const gameId = 'game_demo_live';
-  const userId = 'user_local_player';
 
   return {
-    User: [
-      {
-        id: userId,
-        full_name: 'Local Player',
-        username: 'player',
-        email: 'player@dink.local',
-        telegram_id: 'local-telegram-user',
-        telegram_linked: false,
-        telegram_username: '',
-        photo_url: '',
-        total_winnings: 0,
-        wallet_balance: 0,
-        games_played: 0,
-        best_rank: null,
-        is_banned: false,
-        is_flagged: false,
-        sound_enabled: true,
-        last_seen: created,
-        created_date: created,
-        updated_date: created,
-      },
-    ],
+    __clear_version: DATA_CLEAR_VERSION,
+    User: [],
     AdminUser: [
       {
         id: 'admin_default',
@@ -143,98 +122,8 @@ const seedState = () => {
         updated_date: created,
       },
     ],
-    Game: [
-      {
-        id: gameId,
-        title: 'Meda Trivia Night',
-        description: 'Local demo game. Edit or replace it from Admin.',
-        scheduled_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        status: 'lobby',
-        prize_amount: 5000,
-        platform_fee_percent: 25,
-        auto_prize_enabled: true,
-        max_players: 10000,
-        total_questions: 3,
-        question_timer: 15,
-        current_question_index: 0,
-        explanation_question_index: null,
-        explanation_revealed_at: null,
-        allow_late_join: false,
-        base_points: 100,
-        speed_bonus_max: 50,
-        total_players: 0,
-        winner_user_id: null,
-        ended_at: null,
-        is_paid: false,
-        entry_fee: 0,
-        min_answers: 3,
-        max_answers: 4,
-        created_date: created,
-        updated_date: created,
-      },
-    ],
-    Question: [
-      {
-        id: 'question_demo_1',
-        game_id: gameId,
-        text: 'Which city is the capital of Ethiopia?',
-        image_url: '',
-        explanation: 'Addis Ababa is the capital city and the seat of the African Union.',
-        options: [
-          { label: 'A', text: 'Addis Ababa' },
-          { label: 'B', text: 'Hawassa' },
-          { label: 'C', text: 'Bahir Dar' },
-        ],
-        correct_option: 'A',
-        category: 'General',
-        difficulty: 'easy',
-        time_limit: 15,
-        order_index: 0,
-        is_active: true,
-        created_date: created,
-        updated_date: created,
-      },
-      {
-        id: 'question_demo_2',
-        game_id: gameId,
-        text: 'How many answer choices can one Dink question have?',
-        image_url: '',
-        explanation: 'Each Dink Game question uses three or four answer choices so the game stays fast on mobile.',
-        options: [
-          { label: 'A', text: 'Two choices' },
-          { label: 'B', text: 'Three or four choices' },
-          { label: 'C', text: 'Seven choices' },
-        ],
-        correct_option: 'B',
-        category: 'General',
-        difficulty: 'medium',
-        time_limit: 15,
-        order_index: 1,
-        is_active: true,
-        created_date: created,
-        updated_date: created,
-      },
-      {
-        id: 'question_demo_3',
-        game_id: gameId,
-        text: 'What do winners receive after a game ends?',
-        image_url: '',
-        explanation: 'The prize pool is split between players who remain eligible at the end, then credited to their wallet.',
-        options: [
-          { label: 'A', text: 'Wallet money' },
-          { label: 'B', text: 'Profile badges only' },
-          { label: 'C', text: 'Practice badges' },
-        ],
-        correct_option: 'A',
-        category: 'Wallet',
-        difficulty: 'easy',
-        time_limit: 15,
-        order_index: 2,
-        is_active: true,
-        created_date: created,
-        updated_date: created,
-      },
-    ],
+    Game: [],
+    Question: [],
     GamePlayer: [],
     Answer: [],
     Setting: [],
@@ -243,18 +132,7 @@ const seedState = () => {
     AntiCheatLog: [],
     WalletTransaction: [],
     Withdrawal: [],
-    ChatMessage: [
-      {
-        id: 'chat_seed_1',
-        game_id: gameId,
-        user_id: 'system',
-        username: 'Dink Game',
-        message: '\u1328\u12cb\u1273\u12cd \u120a\u1300\u121d\u122d \u1290\u12cd',
-        is_system: true,
-        created_date: created,
-        updated_date: created,
-      },
-    ],
+    ChatMessage: [],
     GameBan: [],
   };
 };
@@ -266,11 +144,8 @@ const ensureShape = (state) => {
   });
 
   const seeded = seedState();
-  if (next.User.length === 0) next.User.push(...seeded.User);
   if (next.AdminUser.length === 0) next.AdminUser.push(...seeded.AdminUser);
-  if (next.Game.length === 0) next.Game.push(...seeded.Game);
-  if (next.Question.length === 0) next.Question.push(...seeded.Question);
-  if (next.ChatMessage.length === 0) next.ChatMessage.push(...seeded.ChatMessage);
+  next.__clear_version = DATA_CLEAR_VERSION;
 
   return next;
 };
@@ -283,12 +158,18 @@ const readState = () => {
   if (!raw) {
     const seeded = seedState();
     storage.setItem(STORE_KEY, JSON.stringify(seeded));
-    if (!storage.getItem(AUTH_KEY)) storage.setItem(AUTH_KEY, 'user_local_player');
     return seeded;
   }
 
   try {
-    return ensureShape(JSON.parse(raw));
+    const stored = JSON.parse(raw);
+    if (stored?.__clear_version !== DATA_CLEAR_VERSION) {
+      const seeded = seedState();
+      storage.setItem(STORE_KEY, JSON.stringify(seeded));
+      storage.removeItem(AUTH_KEY);
+      return seeded;
+    }
+    return ensureShape(stored);
   } catch {
     const seeded = seedState();
     storage.setItem(STORE_KEY, JSON.stringify(seeded));
@@ -878,13 +759,13 @@ export const appClient = {
     }
     const seeded = seedState();
     writeState(seeded, 'reset');
-    getStorage()?.setItem(AUTH_KEY, 'user_local_player');
+    getStorage()?.removeItem(AUTH_KEY);
     return seeded;
   },
   resetLocalData() {
     const seeded = seedState();
     writeState(seeded, 'reset');
-    getStorage()?.setItem(AUTH_KEY, 'user_local_player');
+    getStorage()?.removeItem(AUTH_KEY);
     return seeded;
   },
 };

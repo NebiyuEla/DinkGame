@@ -132,14 +132,14 @@ export default function Tasks() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-32" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <header className="px-4 pt-5 pb-3 bg-card/80 backdrop-blur-xl border-b border-white/40">
+    <div className="min-h-screen player-page pb-32 text-white" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <header className="px-4 pt-5 pb-3 bg-navy-dark/75 backdrop-blur-xl border-b border-white/10">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-game text-xl font-black text-foreground">Tasks</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Complete tasks and receive wallet money</p>
+            <h1 className="font-game text-xl font-black text-white">Tasks</h1>
+            <p className="text-xs text-white/60 mt-0.5">Complete tasks and receive wallet money</p>
           </div>
-          <div className="rounded-full bg-primary text-white px-3 py-2 flex items-center gap-2">
+          <div className="rounded-full bg-white/10 border border-white/10 text-white px-3 py-2 flex items-center gap-2">
             <Wallet size={15} />
             <span className="text-xs font-black">{fmt(totalTaskMoney)}</span>
           </div>
@@ -148,7 +148,7 @@ export default function Tasks() {
 
       <main className="px-4 pt-4 space-y-3">
         {message && (
-          <div className="liquid-glass rounded-2xl p-3 text-sm font-black text-primary text-center">
+          <div className="liquid-glass rounded-2xl p-3 text-sm font-black text-gold text-center">
             {message}
           </div>
         )}
@@ -158,21 +158,21 @@ export default function Tasks() {
           const done = claimed.has(taskSource(task));
           return (
             <section key={task.id} className="liquid-glass rounded-[1.35rem] p-4 flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center flex-shrink-0">
+              <div className="w-11 h-11 rounded-full bg-white/10 border border-white/10 text-gold flex items-center justify-center flex-shrink-0">
                 <Icon size={20} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h2 className="font-black text-foreground text-sm truncate">{task.title}</h2>
-                  <span className="rounded-full bg-gold/20 text-primary px-2 py-0.5 text-[10px] font-black">{fmt(task.reward)}</span>
+                  <h2 className="font-black text-white text-sm truncate">{task.title}</h2>
+                  <span className="rounded-full bg-gold/20 text-gold px-2 py-0.5 text-[10px] font-black">{fmt(task.reward)}</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{task.desc}</p>
+                <p className="text-xs text-white/[0.58] mt-1 leading-relaxed">{task.desc}</p>
               </div>
               <button
                 onClick={() => claimTask(task)}
                 disabled={done || busy === task.id}
                 className={`h-10 px-3 rounded-full text-xs font-black flex items-center gap-1.5 active:scale-95 transition-transform disabled:opacity-55 ${
-                  done ? 'bg-correct-green text-white' : 'bg-gold text-primary'
+                  done ? 'bg-white/10 text-white/60 border border-white/10' : 'gold-action'
                 }`}
               >
                 {task.url && !done && <ExternalLink size={12} />}

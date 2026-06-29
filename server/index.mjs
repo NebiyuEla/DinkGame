@@ -32,33 +32,14 @@ const nowIso = () => new Date().toISOString();
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const safeBtoa = (value) => Buffer.from(value, 'utf8').toString('base64');
 const createId = (prefix) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+const DATA_CLEAR_VERSION = '2026-06-29-clear-all-data';
 
 const seedState = () => {
   const created = nowIso();
-  const gameId = 'game_demo_live';
-  const userId = 'user_local_player';
 
   return {
-    User: [{
-      id: userId,
-      full_name: 'Local Player',
-      username: 'player',
-      email: 'player@dink.local',
-      telegram_id: 'local-telegram-user',
-      total_winnings: 0,
-      wallet_balance: 0,
-      telegram_linked: false,
-      telegram_username: '',
-      photo_url: '',
-      games_played: 0,
-      best_rank: null,
-      is_banned: false,
-      is_flagged: false,
-      sound_enabled: true,
-      last_seen: created,
-      created_date: created,
-      updated_date: created,
-    }],
+    __clear_version: DATA_CLEAR_VERSION,
+    User: [],
     AdminUser: [{
       id: 'admin_default',
       username: 'admin',
@@ -70,96 +51,8 @@ const seedState = () => {
       created_date: created,
       updated_date: created,
     }],
-    Game: [{
-      id: gameId,
-      title: 'Meda Trivia Night',
-      description: 'Demo game. Edit or replace it from Admin.',
-      scheduled_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-      status: 'lobby',
-      prize_amount: 5000,
-      platform_fee_percent: 25,
-      auto_prize_enabled: true,
-      max_players: 10000,
-      total_questions: 3,
-      question_timer: 15,
-      current_question_index: 0,
-      explanation_question_index: null,
-      explanation_revealed_at: null,
-      allow_late_join: false,
-      base_points: 100,
-      speed_bonus_max: 50,
-      total_players: 0,
-      winner_user_id: null,
-      ended_at: null,
-      is_paid: false,
-      entry_fee: 0,
-      min_answers: 3,
-      max_answers: 4,
-      created_date: created,
-      updated_date: created,
-    }],
-    Question: [
-      {
-        id: 'question_demo_1',
-        game_id: gameId,
-        text: 'Which city is the capital of Ethiopia?',
-        image_url: '',
-        explanation: 'Addis Ababa is the capital city and the seat of the African Union.',
-        options: [
-          { label: 'A', text: 'Addis Ababa' },
-          { label: 'B', text: 'Hawassa' },
-          { label: 'C', text: 'Bahir Dar' },
-        ],
-        correct_option: 'A',
-        category: 'General',
-        difficulty: 'easy',
-        time_limit: 15,
-        order_index: 0,
-        is_active: true,
-        created_date: created,
-        updated_date: created,
-      },
-      {
-        id: 'question_demo_2',
-        game_id: gameId,
-        text: 'How many answer choices can one Dink question have?',
-        image_url: '',
-        explanation: 'Each Dink Game question uses three or four answer choices so the game stays fast on mobile.',
-        options: [
-          { label: 'A', text: 'Two choices' },
-          { label: 'B', text: 'Three or four choices' },
-          { label: 'C', text: 'Seven choices' },
-        ],
-        correct_option: 'B',
-        category: 'General',
-        difficulty: 'medium',
-        time_limit: 15,
-        order_index: 1,
-        is_active: true,
-        created_date: created,
-        updated_date: created,
-      },
-      {
-        id: 'question_demo_3',
-        game_id: gameId,
-        text: 'What do winners receive after a game ends?',
-        image_url: '',
-        explanation: 'The prize pool is split between players who remain eligible at the end, then credited to their wallet.',
-        options: [
-          { label: 'A', text: 'Wallet money' },
-          { label: 'B', text: 'Profile badges only' },
-          { label: 'C', text: 'Practice badges' },
-        ],
-        correct_option: 'A',
-        category: 'Wallet',
-        difficulty: 'easy',
-        time_limit: 15,
-        order_index: 2,
-        is_active: true,
-        created_date: created,
-        updated_date: created,
-      },
-    ],
+    Game: [],
+    Question: [],
     GamePlayer: [],
     Answer: [],
     Setting: [],
@@ -168,16 +61,7 @@ const seedState = () => {
     AntiCheatLog: [],
     WalletTransaction: [],
     Withdrawal: [],
-    ChatMessage: [{
-      id: 'chat_seed_1',
-      game_id: gameId,
-      user_id: 'system',
-      username: 'Dink Game',
-      message: '\u1328\u12cb\u1273\u12cd \u120a\u1300\u121d\u122d \u1290\u12cd',
-      is_system: true,
-      created_date: created,
-      updated_date: created,
-    }],
+    ChatMessage: [],
     GameBan: [],
   };
 };
@@ -187,10 +71,11 @@ const ensureShape = (state) => {
   const seeded = seedState();
   ENTITY_NAMES.forEach((name) => {
     if (!Array.isArray(next[name])) next[name] = [];
-    if (next[name].length === 0 && ['User', 'AdminUser', 'Game', 'Question'].includes(name)) {
+    if (next[name].length === 0 && name === 'AdminUser') {
       next[name].push(...seeded[name]);
     }
   });
+  next.__clear_version = DATA_CLEAR_VERSION;
   return next;
 };
 
@@ -204,7 +89,13 @@ const ensureDataFile = async () => {
 const readState = async () => {
   await ensureDataFile();
   try {
-    return ensureShape(JSON.parse(await readFile(DATA_FILE, 'utf8')));
+    const stored = JSON.parse(await readFile(DATA_FILE, 'utf8'));
+    if (stored?.__clear_version !== DATA_CLEAR_VERSION) {
+      const seeded = seedState();
+      await writeFile(DATA_FILE, JSON.stringify(seeded, null, 2));
+      return seeded;
+    }
+    return ensureShape(stored);
   } catch {
     const seeded = seedState();
     await writeFile(DATA_FILE, JSON.stringify(seeded, null, 2));
