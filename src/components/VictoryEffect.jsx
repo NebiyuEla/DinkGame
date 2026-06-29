@@ -117,7 +117,7 @@ export function CorrectBurst({ onDone }) {
             <CheckCircle size={40} className="text-white" strokeWidth={2.5} />
           </div>
           <div className="bg-correct-green/90 px-5 py-2 rounded-full">
-            <span className="font-amharic font-black text-white text-lg">{"\u1270\u1218\u120d\u1237\u120d"}</span>
+            <span className="font-black text-white text-lg">{"\u1270\u1218\u120d\u1237\u120d"}</span>
           </div>
         </div>
       </div>

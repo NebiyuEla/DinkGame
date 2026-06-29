@@ -342,7 +342,7 @@ export default function LiveGame() {
         {showExplanation ? (
           <section className="dink-answer-card rounded-[1.6rem] p-4 mb-3 animate-slide-up">
             {resultLabel && (
-              <div className={`mx-auto mb-3 flex w-fit min-h-9 items-center justify-center rounded-full border px-4 font-amharic text-lg font-black ${resultLabel.className}`}>
+              <div className={`mx-auto mb-3 flex w-fit min-h-9 items-center justify-center rounded-full border px-4 text-lg font-black ${resultLabel.className}`}>
                 {resultLabel.text}
               </div>
             )}
