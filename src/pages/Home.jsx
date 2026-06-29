@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Music2, ShieldCheck, Users, Wallet, Trophy, Clock3, Youtube } from 'lucide-react';
+import { BookOpen, Music2, ShieldCheck, Users, Trophy, Clock3, Youtube } from 'lucide-react';
 import DinkLogo from '@/components/DinkLogo';
 import CountdownTimer from '@/components/CountdownTimer';
 import { GameCardSkeleton } from '@/components/LoadingSkeleton';
@@ -104,7 +104,7 @@ export default function Home() {
           <DinkLogo size="sm" />
           <div className="flex items-center gap-2">
             <div className="h-9 px-3 rounded-full bg-primary text-white flex items-center gap-2">
-              <Wallet size={15} />
+              <img src="/brand/etb-coin-small.webp" alt="" className="w-5 h-5 object-contain" loading="eager" decoding="async" />
               <span className="font-black text-xs">{fmt(walletBalance)}</span>
             </div>
             <Link to="/profile" className="w-9 h-9 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center overflow-hidden">
@@ -169,12 +169,15 @@ export default function Home() {
               </section>
 
               {prizePool > 0 && (
-                <section className="rounded-3xl bg-primary text-white p-4">
-                  <p className="text-xs font-black text-white/70 tracking-widest mb-2">TODAY'S PRIZE</p>
-                  <p className="text-3xl font-black">{fmt(prizePool)}</p>
-                  <p className="text-sm text-white/75 mt-1">
-                    All players still in the game at the end split the prize equally into their wallet.
-                  </p>
+                <section className="rounded-3xl bg-primary text-white p-4 flex items-center gap-4">
+                  <img src="/brand/etb-coin.webp" alt="" className="w-16 h-16 object-contain flex-shrink-0" loading="lazy" decoding="async" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-white/70 tracking-widest mb-2">TODAY'S PRIZE</p>
+                    <p className="text-3xl font-black">{fmt(prizePool)}</p>
+                    <p className="text-sm text-white/75 mt-1">
+                      All players still in the game at the end split the prize equally into their wallet.
+                    </p>
+                  </div>
                 </section>
               )}
 

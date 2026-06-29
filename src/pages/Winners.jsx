@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Medal, Sparkles, Trophy, Wallet } from 'lucide-react';
+import { Medal, Sparkles, Trophy } from 'lucide-react';
 import Confetti from '@/components/Confetti';
 import { LeaderboardSkeleton } from '@/components/LoadingSkeleton';
 import { useGame } from '@/lib/gameContext';
@@ -136,7 +136,10 @@ export default function Winners() {
                   </div>
                   <div className="text-right">
                     <p className="font-game text-primary font-black text-sm">{fmt(player.wallet_credit || player.prize_share)}</p>
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-1 justify-end"><Wallet size={10} /> wallet</p>
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1 justify-end">
+                      <img src="/brand/etb-coin-small.webp" alt="" className="w-3 h-3 object-contain" loading="lazy" decoding="async" />
+                      wallet
+                    </p>
                   </div>
                 </div>
               );

@@ -60,8 +60,8 @@ export default function BottomNav() {
           aria-label="Dink Game"
         >
           <picture>
-            <source srcSet="/brand/dink-game-logo-small.webp" type="image/webp" />
-            <img src="/brand/dink-game-logo.png" alt="" className="h-12 w-12 rounded-full object-cover" draggable="false" loading="eager" decoding="async" />
+            <source srcSet="/brand/dink-game-logo-transparent-small.webp" type="image/webp" />
+            <img src="/brand/dink-game-logo-transparent.png" alt="" className="h-14 w-14 object-contain" draggable="false" loading="eager" decoding="async" />
           </picture>
         </motion.button>
 

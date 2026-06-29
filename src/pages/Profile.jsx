@@ -45,8 +45,8 @@ export default function Profile() {
               <p className="text-xs font-black text-white/70 tracking-widest">WALLET BALANCE</p>
               <p className="font-game text-3xl font-black mt-1">{fmt(currentUser?.wallet_balance)}</p>
             </div>
-            <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center">
-              <Wallet size={22} />
+            <div className="w-14 h-14 rounded-full bg-white/15 flex items-center justify-center">
+              <img src="/brand/etb-coin-small.webp" alt="" className="w-10 h-10 object-contain" loading="eager" decoding="async" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-4">

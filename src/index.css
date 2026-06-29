@@ -140,9 +140,13 @@
   }
 
   .dink-orange-field {
-    background:
-      radial-gradient(circle at 50% 8%, hsl(44 100% 57% / 0.95), transparent 28rem),
-      linear-gradient(180deg, #f3b200 0%, #f7942f 42%, #f46f22 100%);
+    background-color: #e5ad05;
+    background-image: image-set(
+      url('/brand/kid-background-small.webp') 1x,
+      url('/brand/kid-background.webp') 2x
+    );
+    background-size: cover;
+    background-position: center;
   }
 
   .dink-answer-card {

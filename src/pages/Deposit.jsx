@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, CreditCard, Landmark, Wallet } from 'lucide-react';
+import { ArrowLeft, CheckCircle, CreditCard, Landmark } from 'lucide-react';
 import DinkLogo from '@/components/DinkLogo';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
@@ -174,8 +174,8 @@ export default function Deposit() {
               <p className="text-xs font-black text-white/60 tracking-widest">WALLET BALANCE</p>
               <p className="text-4xl font-black mt-1">{fmt(walletBalance)}</p>
             </div>
-            <div className="w-14 h-14 rounded-full bg-white/12 flex items-center justify-center">
-              <Wallet size={26} />
+            <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+              <img src="/brand/etb-coin-small.webp" alt="" className="w-12 h-12 object-contain" loading="eager" decoding="async" />
             </div>
           </div>
           {game?.is_paid && (
