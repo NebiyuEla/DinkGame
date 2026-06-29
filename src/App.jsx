@@ -1,7 +1,8 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -39,6 +40,7 @@ import AdminSettings from './pages/admin/AdminSettings';
 import SplashScreen from './components/SplashScreen';
 import TelegramGate from './components/TelegramGate';
 import WelcomeSplash from './components/WelcomeSplash';
+import BottomNav from './components/BottomNav';
 
 function AdminGuard({ children }) {
   const { adminUser, isLoadingAdmin } = useAdmin();
@@ -51,8 +53,10 @@ function AdminGuard({ children }) {
   return children;
 }
 
-function PlayerRoute({ children }) {
+function PlayerRoute() {
   const { currentUser } = useGame();
+  const location = useLocation();
+  const showNav = ['/', '/leaderboard', '/winners', '/rules', '/profile'].includes(location.pathname);
   const key = currentUser?.id ? `dink_welcome_seen_${currentUser.id}` : 'dink_welcome_seen_guest';
   const [showWelcome, setShowWelcome] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -72,7 +76,18 @@ function PlayerRoute({ children }) {
   return (
     <TelegramGate>
       {showWelcome && currentUser && <WelcomeSplash user={currentUser} onDone={finishWelcome} />}
-      {children}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.16, ease: 'easeOut' }}
+        >
+          <Outlet />
+        </motion.div>
+      </AnimatePresence>
+      {showNav && <BottomNav />}
     </TelegramGate>
   );
 }
@@ -124,14 +139,16 @@ const AuthenticatedApp = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* User routes */}
-        <Route path="/" element={<PlayerRoute><Home /></PlayerRoute>} />
-        <Route path="/lobby" element={<PlayerRoute><Lobby /></PlayerRoute>} />
-        <Route path="/game" element={<PlayerRoute><LiveGame /></PlayerRoute>} />
-        <Route path="/leaderboard" element={<PlayerRoute><Leaderboard /></PlayerRoute>} />
-        <Route path="/winners" element={<PlayerRoute><Winners /></PlayerRoute>} />
-        <Route path="/profile" element={<PlayerRoute><Profile /></PlayerRoute>} />
-        <Route path="/deposit" element={<PlayerRoute><Deposit /></PlayerRoute>} />
-        <Route path="/rules" element={<PlayerRoute><Rules /></PlayerRoute>} />
+        <Route element={<PlayerRoute />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/lobby" element={<Lobby />} />
+          <Route path="/game" element={<LiveGame />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/winners" element={<Winners />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/deposit" element={<Deposit />} />
+          <Route path="/rules" element={<Rules />} />
+        </Route>
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </>

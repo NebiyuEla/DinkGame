@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, ShieldCheck, Users, Wallet, Trophy, Clock3 } from 'lucide-react';
+import { BookOpen, Music2, ShieldCheck, Users, Wallet, Trophy, Clock3, Youtube } from 'lucide-react';
 import DinkLogo from '@/components/DinkLogo';
 import CountdownTimer from '@/components/CountdownTimer';
-import BottomNav from '@/components/BottomNav';
 import { GameCardSkeleton } from '@/components/LoadingSkeleton';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
@@ -19,37 +18,39 @@ export default function Home() {
   const [joining, setJoining] = useState(false);
   const navigate = useNavigate();
 
-  const displayGame = currentGame || nextGame;
-  const gameActive = gameStatus === 'lobby' || gameStatus === 'live';
+  const liveGame = currentGame && ['lobby', 'live'].includes(currentGame.status) ? currentGame : null;
+  const scheduledGame = nextGame && ['scheduled', 'lobby'].includes(nextGame.status) ? nextGame : null;
+  const displayGame = liveGame || scheduledGame;
+  const gameActive = displayGame && (gameStatus === 'lobby' || gameStatus === 'live' || ['lobby', 'live'].includes(displayGame.status));
   const prizePool = Number(displayGame?.prize_amount || 0);
   const entryFee = Number(displayGame?.entry_fee || 0);
   const isPaid = Boolean(displayGame?.is_paid && entryFee > 0);
   const walletBalance = Number(currentUser?.wallet_balance || 0);
   const activePlayerCount = players.filter(p => !p.is_disqualified && !p.is_eliminated && p.status !== 'disconnected').length;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadNextGame(), loadActiveGame()]);
-    const game = currentGame || nextGame;
+    const [next, active] = await Promise.all([loadNextGame(), loadActiveGame()]);
+    const game = active || next;
     if (game?.id) {
       const gamePlayers = await appClient.entities.GamePlayer.filter({ game_id: game.id }, '-created_date', 200).catch(() => []);
       setPlayers(gamePlayers);
+    } else {
+      setPlayers([]);
     }
     setLoading(false);
-  };
+  }, [loadActiveGame, loadNextGame]);
 
   useEffect(() => {
     load();
-    const interval = setInterval(() => {
-      loadActiveGame();
-      if (displayGame?.id) {
-        appClient.entities.GamePlayer.filter({ game_id: displayGame.id }, '-created_date', 200)
-          .then(setPlayers)
-          .catch(() => {});
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [displayGame?.id]);
+    const unsubscribe = appClient.events?.subscribe?.((detail) => {
+      const event = String(detail?.event || '');
+      if (/Game|GamePlayer|Deposit|WalletTransaction|User/.test(event)) load();
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [load]);
 
   const ensurePaidEntry = async (game) => {
     if (!isPaid || !currentUser) return true;
@@ -97,15 +98,15 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-28" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-screen bg-background pb-24" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="px-4 pt-3 pb-3 bg-card border-b border-border">
         <div className="flex items-center justify-between gap-3">
           <DinkLogo size="sm" />
           <div className="flex items-center gap-2">
-            <Link to="/deposit" className="h-9 px-3 rounded-full bg-primary text-white flex items-center gap-2">
+            <div className="h-9 px-3 rounded-full bg-primary text-white flex items-center gap-2">
               <Wallet size={15} />
               <span className="font-black text-xs">{fmt(walletBalance)}</span>
-            </Link>
+            </div>
             <Link to="/profile" className="w-9 h-9 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center overflow-hidden">
               {currentUser?.photo_url
                 ? <img src={currentUser.photo_url} className="w-full h-full object-cover" alt="" />
@@ -130,11 +131,14 @@ export default function Home() {
                         {gameStatus === 'live' ? 'LIVE GAME' : gameStatus === 'lobby' ? 'WAITING ROOM' : 'NEXT GAME'}
                       </span>
                     </div>
-                    <h1 className="text-2xl font-black text-foreground leading-tight">{displayGame?.title || 'No game scheduled'}</h1>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {isPaid ? `${fmt(entryFee)} to join` : 'Free to play'}
-                      {prizePool > 0 ? ` - ${fmt(prizePool)} prize pool` : ''}
-                    </p>
+                    <h1 className="text-2xl font-black text-foreground leading-tight">{displayGame?.title || 'No coming games'}</h1>
+                    {(isPaid || prizePool > 0) && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {isPaid ? `${fmt(entryFee)} entry` : ''}
+                        {isPaid && prizePool > 0 ? ' - ' : ''}
+                        {prizePool > 0 ? `${fmt(prizePool)} prize pool` : ''}
+                      </p>
+                    )}
                   </div>
                   <BrandMascot className="w-20 h-20 object-contain flex-shrink-0" small />
                 </div>
@@ -199,17 +203,31 @@ export default function Home() {
                 </Link>
               </div>
 
+              <div className="grid grid-cols-2 gap-2">
+                <a href="https://www.tiktok.com/@DinkGame" target="_blank" rel="noreferrer" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
+                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Music2 size={16} className="text-primary" />
+                  </div>
+                  <span className="text-sm font-black text-foreground">TikTok @DinkGame</span>
+                </a>
+                <a href="https://www.youtube.com/@DinkGame" target="_blank" rel="noreferrer" className="rounded-2xl bg-card border border-border px-4 py-3 flex items-center gap-3 active:scale-95 transition-transform">
+                  <div className="w-9 h-9 rounded-full bg-gold/15 flex items-center justify-center">
+                    <Youtube size={16} className="text-gold" />
+                  </div>
+                  <span className="text-sm font-black text-foreground">YouTube @DinkGame</span>
+                </a>
+              </div>
+
               {!displayGame && (
                 <div className="rounded-2xl bg-card border border-border p-4 flex gap-3">
                   <Clock3 size={18} className="text-muted-foreground flex-shrink-0" />
-                  <p className="text-sm text-muted-foreground">Admin has not scheduled the next game yet.</p>
+                  <p className="text-sm text-muted-foreground">No coming games</p>
                 </div>
               )}
             </>
           )}
         </div>
       </PullToRefresh>
-      <BottomNav />
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Landmark, ShieldCheck, Trophy, Wallet } from 'lucide-react';
-import BottomNav from '@/components/BottomNav';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
 
@@ -35,10 +34,6 @@ export default function Profile() {
           <div className="flex-1 min-w-0">
             <p className="font-black text-foreground text-lg truncate">{currentUser?.full_name || 'Player'}</p>
             <p className="text-muted-foreground text-sm truncate">{currentUser?.telegram_username ? `@${currentUser.telegram_username}` : currentUser?.username || 'Telegram player'}</p>
-            <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-correct-green/10 border border-correct-green/20 px-2.5 py-1 text-[10px] font-black text-correct-green">
-              <ShieldCheck size={11} />
-              Telegram linked
-            </div>
           </div>
         </div>
       </header>
@@ -124,7 +119,6 @@ export default function Profile() {
 
       </main>
 
-      <BottomNav />
     </div>
   );
 }

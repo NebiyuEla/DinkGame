@@ -272,6 +272,18 @@ const calculateGameFinancials = (game, deposits = []) => {
   };
 };
 
+const buildChapaReturnUrl = (returnUrl, txRef, demo = false) => {
+  try {
+    const url = new URL(returnUrl || '/deposit', 'http://localhost');
+    url.searchParams.set('tx_ref', txRef);
+    if (demo) url.searchParams.set('demo', '1');
+    return url.toString();
+  } catch {
+    const separator = String(returnUrl || '').includes('?') ? '&' : '?';
+    return `${returnUrl || '/deposit'}${separator}tx_ref=${encodeURIComponent(txRef)}${demo ? '&demo=1' : ''}`;
+  }
+};
+
 const creditWinnerWallets = async (state, game) => {
   const activeWinners = state.GamePlayer.filter((player) => (
     player.game_id === game.id &&
@@ -511,7 +523,8 @@ const handlePaymentApi = async (req, res, pathname) => {
       updated_date: created,
     };
 
-    let checkoutUrl = `${body.return_url || ''}?tx_ref=${encodeURIComponent(txRef)}&demo=1`;
+    const returnUrlWithTx = buildChapaReturnUrl(body.return_url, txRef);
+    let checkoutUrl = buildChapaReturnUrl(body.return_url, txRef, true);
     if (process.env.CHAPA_SECRET_KEY) {
       const response = await fetch('https://api.chapa.co/v1/transaction/initialize', {
         method: 'POST',
@@ -528,7 +541,7 @@ const handlePaymentApi = async (req, res, pathname) => {
           phone_number: body.phone || '',
           tx_ref: txRef,
           callback_url: body.callback_url,
-          return_url: body.return_url,
+          return_url: returnUrlWithTx,
           customization: { title: 'Dink Game Wallet', description: 'Wallet deposit for Dink Game' },
         }),
       });

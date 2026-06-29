@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Eye, ShieldCheck, Users } from 'lucide-react';
+import { CheckCircle, Eye, Users } from 'lucide-react';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
 import { CorrectBurst } from '@/components/VictoryEffect';
@@ -31,12 +31,12 @@ export default function LiveGame() {
     isAnswerLocked,
     setIsAnswerLocked,
     questionStartTimeRef,
-    isSuspicious,
     submitAnswer,
     loadActiveGame,
     setCurrentQuestion,
     setQuestionIndex,
     setTotalQuestions,
+    answerResult,
     setAnswerResult,
   } = useGame();
 
@@ -54,6 +54,7 @@ export default function LiveGame() {
   const timerRef = useRef(null);
   const pollRef = useRef(null);
   const appliedRevealRef = useRef(null);
+  const timerQuestionRef = useRef(null);
 
   const questionIndex = game?.current_question_index || 0;
   const activePlayers = players.filter(canPlay);
@@ -96,12 +97,15 @@ export default function LiveGame() {
     });
   }, [currentUser]);
 
-  const startTimer = useCallback((seconds) => {
+  const startTimer = useCallback((seconds, startedAt) => {
     clearInterval(timerRef.current);
-    let next = Number(seconds || 10);
+    const total = Number(seconds || 10);
+    const startMs = startedAt ? new Date(startedAt).getTime() : Date.now();
+    const getRemaining = () => Math.min(total, Math.max(0, Math.ceil((startMs + total * 1000 - Date.now()) / 1000)));
+    let next = getRemaining();
     setTimeLeft(next);
     timerRef.current = setInterval(() => {
-      next -= 1;
+      next = getRemaining();
       setTimeLeft(Math.max(0, next));
       if (next <= 0) {
         clearInterval(timerRef.current);
@@ -137,6 +141,7 @@ export default function LiveGame() {
         status: 'finished',
       });
       setPlayer(out);
+      setAnswerResult(null);
       return;
     }
 
@@ -222,22 +227,37 @@ export default function LiveGame() {
     setPlayer(latestPlayer);
     setMyScore(latestPlayer?.total_score || 0);
     setMyAnswer(mine?.selected_option || null);
-    setIsAnswerLocked(Boolean(mine || !canPlay(latestPlayer)));
 
     if (!q) return;
+
+    const timeLimit = Number(q.time_limit || latestGame.question_timer || 10);
+    const startedMs = latestGame.question_started_at
+      ? new Date(latestGame.question_started_at).getTime()
+      : questionStartTimeRef.current;
+    const isExpired = startedMs ? Date.now() >= startedMs + timeLimit * 1000 : false;
+    setIsAnswerLocked(Boolean(mine || !canPlay(latestPlayer) || isExpired));
 
     const revealed = latestGame.explanation_question_index === (latestGame.current_question_index || 0);
     if (revealed) {
       await scoreReveal(latestGame, q, latestPlayer);
-    } else if (appliedRevealRef.current?.startsWith(`${latestGame.id}:${q.id}`)) {
-      appliedRevealRef.current = null;
-    } else if (!mine && canPlay(latestPlayer)) {
+    } else {
+      const questionKey = `${latestGame.id}:${q.id}:${latestGame.question_started_at || latestGame.current_question_index || 0}`;
+      if (appliedRevealRef.current?.startsWith(`${latestGame.id}:${q.id}`)) {
+        appliedRevealRef.current = null;
+      }
       setShowExplanation(false);
       setRevealedCorrect(null);
-      questionStartTimeRef.current = Date.now();
-      startTimer(q.time_limit || latestGame.question_timer || 10);
+      setAnswerResult(null);
+
+      if (timerQuestionRef.current !== questionKey) {
+        timerQuestionRef.current = questionKey;
+        questionStartTimeRef.current = latestGame.question_started_at
+          ? new Date(latestGame.question_started_at).getTime()
+          : Date.now();
+        startTimer(q.time_limit || latestGame.question_timer || 10, latestGame.question_started_at);
+      }
     }
-  }, [currentGame, currentUser?.id, game, getOrCreatePlayer, loadActiveGame, navigate, questionStartTimeRef, scoreReveal, setCurrentQuestion, setIsAnswerLocked, setMyAnswer, setMyScore, setQuestionIndex, setTotalQuestions, startTimer]);
+  }, [currentGame, currentUser?.id, game, getOrCreatePlayer, loadActiveGame, navigate, questionStartTimeRef, scoreReveal, setAnswerResult, setCurrentQuestion, setIsAnswerLocked, setMyAnswer, setMyScore, setQuestionIndex, setTotalQuestions, startTimer]);
 
   useEffect(() => {
     loadGameState();
@@ -261,12 +281,18 @@ export default function LiveGame() {
   const answerClass = (option) => {
     if (showExplanation) {
       if (option.label === revealedCorrect) return 'bg-correct-green text-white border-correct-green';
-      if (myAnswer === option.label && option.label !== revealedCorrect) return 'bg-white/75 text-foreground border-wrong-red/45';
+      if (myAnswer === option.label && option.label !== revealedCorrect) return 'bg-wrong-red text-white border-wrong-red';
       return 'bg-white/70 text-foreground border-white/60';
     }
     if (myAnswer === option.label) return 'bg-primary text-white border-primary';
-    return 'bg-white/88 text-foreground border-white/80 active:scale-[0.99]';
+    return 'bg-white/90 text-foreground border-white/80 active:scale-[0.99]';
   };
+
+  const resultLabel = answerResult === 'correct'
+    ? { text: '\u1270\u1218\u120d\u1237\u120d', className: 'text-correct-green bg-correct-green/10 border-correct-green/20' }
+    : answerResult === 'wrong'
+      ? { text: '\u1270\u1233\u1235\u1270\u12cb\u120d', className: 'text-wrong-red bg-wrong-red/10 border-wrong-red/20' }
+      : null;
 
   if (!question) {
     return (
@@ -287,7 +313,7 @@ export default function LiveGame() {
           <Users size={17} />
           <span>{activeCount.toLocaleString()}</span>
         </div>
-        <div className="relative w-16 h-16 rounded-full bg-white/92 border-4 border-white flex items-center justify-center shadow-lg">
+        <div className="relative w-16 h-16 rounded-full bg-white/90 border-4 border-white flex items-center justify-center shadow-lg">
           <div className="absolute inset-1 rounded-full border-2 border-gold/50" />
           <span className={`text-3xl font-black ${timeLeft <= 3 ? 'text-wrong-red animate-shake' : 'text-primary'}`}>{timeLeft}</span>
         </div>
@@ -297,19 +323,17 @@ export default function LiveGame() {
         </div>
       </header>
 
-      {isSuspicious && (
-        <div className="mx-4 mb-2 rounded-full bg-white/18 text-white px-4 py-2 flex items-center justify-center gap-2">
-          <ShieldCheck size={14} />
-          <span className="text-xs font-black">Fair-play warning recorded</span>
-        </div>
-      )}
-
       <main className="px-4 pt-2 flex-1 flex flex-col">
         <section className="dink-answer-card rounded-[1.6rem] p-4 mb-3">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-black text-muted-foreground">{game?.title}</p>
             <p className="text-xs font-black text-primary">{questionIndex + 1}/{questions.length}</p>
           </div>
+          {showExplanation && resultLabel && (
+            <div className={`mx-auto mb-3 flex w-fit min-h-9 items-center justify-center rounded-full border px-4 font-amharic text-lg font-black ${resultLabel.className}`}>
+              {resultLabel.text}
+            </div>
+          )}
           <h1 className={`text-center text-xl leading-relaxed font-black text-foreground mb-4 ${amharicClass(question.text)}`}>
             {question.text}
           </h1>
@@ -341,14 +365,11 @@ export default function LiveGame() {
           </div>
 
           {showExplanation && (
-            <div className="mt-4 rounded-2xl bg-white/70 border border-border p-3 animate-slide-up">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="mt-4 rounded-2xl bg-white/75 border border-border p-4 text-center animate-slide-up">
+              <div className="flex items-center justify-center gap-2 mb-2">
                 <Eye size={15} className="text-primary" />
                 <p className="text-xs font-black text-primary">Explanation</p>
               </div>
-              {myAnswer === revealedCorrect && (
-                <p className="font-amharic text-correct-green font-black text-lg mb-2">ተመልሷል</p>
-              )}
               {correctOption && (
                 <p className={`font-black text-foreground mb-2 ${amharicClass(correctOption.text)}`}>{correctOption.text}</p>
               )}
@@ -362,20 +383,20 @@ export default function LiveGame() {
         </section>
 
         {!myCanPlay && (
-          <div className="rounded-full bg-white/18 px-4 py-3 text-white text-center font-black mb-3">
+          <div className="rounded-full bg-white/20 px-4 py-3 text-white text-center font-black mb-3">
             Watching only
           </div>
         )}
 
         {isAnswerLocked && !showExplanation && myCanPlay && (
-          <div className="rounded-full bg-white/18 px-4 py-3 text-white text-center font-black mb-3">
+          <div className="rounded-full bg-white/20 px-4 py-3 text-white text-center font-black mb-3">
             Waiting for reveal
           </div>
         )}
 
         <div className="mt-auto pb-5 text-center text-white/70">
           <CheckCircle size={14} className="mx-auto mb-1" />
-          <p className="text-[10px] font-black tracking-widest">FAIR PLAY PROTECTED</p>
+          <p className="text-[10px] font-black tracking-widest">DINK GAME LIVE</p>
         </div>
       </main>
     </div>

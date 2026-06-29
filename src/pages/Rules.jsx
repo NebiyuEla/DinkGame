@@ -1,21 +1,19 @@
 import React from 'react';
-import { ArrowLeft, CheckCircle, Clock, Eye, Lock, Shield, Wallet } from 'lucide-react';
+import { ArrowLeft, Clock, Lock, Shield, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const RULES = [
   { icon: Clock, title: 'Question Timer', desc: 'Each question runs by countdown. When time ends, the answer is locked.' },
-  { icon: Eye, title: 'Reveal First', desc: 'Players do not see correct or wrong feedback until admin reveals the explanation.' },
   { icon: Lock, title: 'One Mistake Ends Play', desc: 'Wrong answers and missed answers remove the player from answering. They can keep watching.' },
   { icon: Wallet, title: 'Prize Split', desc: 'All players still in the game when it ends split the prize pool equally. The share is added to their wallet automatically.' },
   { icon: Wallet, title: 'Telebirr Withdrawal', desc: 'Withdrawals are available to Telebirr from 100 ETB and above.' },
-  { icon: Shield, title: 'Fair Play', desc: 'Leaving the Telegram mini app, suspicious focus changes, impossible answer speed, overlays, or admin-flagged cheating can ban a user from that game.' },
-  { icon: CheckCircle, title: 'Telegram Only', desc: 'Player access is limited to Telegram mobile mini app users in production.' },
+  { icon: Shield, title: 'Fair Play', desc: 'The game protects the prize pool from focus abuse, overlays, impossible answer speed, and admin-reviewed cheating reports.' },
 ];
 
 export default function Rules() {
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-background pb-8">
+    <div className="min-h-screen bg-background pb-24">
       <div className="px-4 pt-6 pb-4 bg-card border-b border-border">
         <div className="flex items-center gap-3 mb-1">
           <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
@@ -41,7 +39,7 @@ export default function Rules() {
           </div>
         ))}
         <div className="mt-4 p-4 bg-card rounded-2xl border border-border text-center">
-          <p className="text-xs text-muted-foreground">By playing Dink Game, you agree to the fair-play and payout rules.</p>
+          <p className="text-xs text-muted-foreground">Prize and wallet rules apply automatically after every finished game.</p>
         </div>
       </div>
     </div>

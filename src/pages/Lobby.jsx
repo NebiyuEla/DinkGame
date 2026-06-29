@@ -116,7 +116,7 @@ export default function Lobby() {
   return (
     <div className="min-h-screen dink-orange-field text-white overflow-hidden flex flex-col">
       <div className="px-4 pt-4 pb-2 flex items-center justify-end relative z-10">
-        <div className="flex items-center gap-2 rounded-full bg-white/18 px-3 py-2 backdrop-blur">
+        <div className="flex items-center gap-2 rounded-full bg-white/20 px-3 py-2 backdrop-blur">
           <Users size={16} />
           <span className="font-black">{playerCount.toLocaleString()}</span>
         </div>
@@ -149,7 +149,7 @@ export default function Lobby() {
               value={chatText}
               onChange={event => setChatText(event.target.value)}
               maxLength={120}
-              className="min-w-0 flex-1 rounded-full bg-white/92 text-primary px-4 py-3 text-sm font-semibold outline-none"
+              className="min-w-0 flex-1 rounded-full bg-white/90 text-primary px-4 py-3 text-sm font-semibold outline-none"
               placeholder="Type message"
             />
             <button className="w-12 h-12 rounded-full bg-white text-primary flex items-center justify-center active:scale-95 transition-transform">

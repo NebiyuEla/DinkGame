@@ -456,6 +456,19 @@ const calculateGameFinancials = (game, deposits = []) => {
   return { gross, platformFeePercent, platformProfit, prizePool, paidCount: paidDeposits.length };
 };
 
+const buildChapaReturnUrl = (returnUrl, txRef) => {
+  const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+  try {
+    const url = new URL(returnUrl || '/deposit', fallbackOrigin);
+    url.searchParams.set('tx_ref', txRef);
+    url.searchParams.set('demo', '1');
+    return url.toString();
+  } catch {
+    const separator = String(returnUrl || '').includes('?') ? '&' : '?';
+    return `${returnUrl || '/deposit'}${separator}tx_ref=${encodeURIComponent(txRef)}&demo=1`;
+  }
+};
+
 const creditWinnerWallets = (state, game) => {
   const activeWinners = state.GamePlayer.filter((player) => (
     player.game_id === game.id &&
@@ -744,7 +757,7 @@ const payments = {
         provider: 'chapa',
         purpose: payload.purpose || 'wallet',
         chapa_tx_ref: txRef,
-        chapa_checkout_url: `${payload.return_url || window.location.origin}?tx_ref=${encodeURIComponent(txRef)}&demo=1`,
+        chapa_checkout_url: buildChapaReturnUrl(payload.return_url, txRef),
         demo_checkout: true,
       }),
       id: createId('deposit'),

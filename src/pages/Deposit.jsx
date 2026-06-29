@@ -1,15 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, CreditCard, Landmark, Wallet } from 'lucide-react';
 import DinkLogo from '@/components/DinkLogo';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
+import { getTelegramWebApp } from '@/lib/telegram';
 
 const fmt = (n) => new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 0 }).format(n || 0);
 
 export default function Deposit() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, setCurrentUser, currentGame, nextGame } = useGame();
   const game = currentGame || nextGame;
   const suggestedAmount = Number(searchParams.get('amount') || game?.entry_fee || 50);
@@ -21,11 +22,12 @@ export default function Deposit() {
   const [withdrawPhone, setWithdrawPhone] = useState('');
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [verifyingReturn, setVerifyingReturn] = useState(false);
   const [message, setMessage] = useState('');
 
   const walletBalance = Number(currentUser?.wallet_balance || 0);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!currentUser?.id) return;
     const [users, txs] = await Promise.all([
       appClient.entities.User.filter({ id: currentUser.id }, '-created_date', 1),
@@ -33,9 +35,41 @@ export default function Deposit() {
     ]);
     if (users[0]) setCurrentUser(users[0]);
     setTransactions(txs);
-  };
+  }, [currentUser?.id, setCurrentUser]);
 
-  useEffect(() => { refresh(); }, [currentUser?.id]);
+  useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    const txRef = searchParams.get('tx_ref') || searchParams.get('trx_ref');
+    if (!txRef || verifyingReturn) return;
+
+    let cancelled = false;
+    const verifyReturn = async () => {
+      setVerifyingReturn(true);
+      setLoading(true);
+      setMessage('Checking payment...');
+      try {
+        const result = await appClient.payments.verifyChapa({ tx_ref: txRef });
+        if (cancelled) return;
+        setDeposit(result.deposit);
+        await refresh();
+        setMessage(result.paid ? 'Wallet updated.' : 'Payment is still pending.');
+        const nextParams = new URLSearchParams(searchParams);
+        ['tx_ref', 'trx_ref', 'status', 'demo', 'source'].forEach(key => nextParams.delete(key));
+        setSearchParams(nextParams, { replace: true });
+      } catch (error) {
+        if (!cancelled) setMessage(error.message || 'Could not verify payment');
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setVerifyingReturn(false);
+        }
+      }
+    };
+
+    verifyReturn();
+    return () => { cancelled = true; };
+  }, [refresh, searchParams, setSearchParams, verifyingReturn]);
 
   const startDeposit = async (e) => {
     e.preventDefault();
@@ -43,6 +77,11 @@ export default function Deposit() {
     setLoading(true);
     setMessage('');
     try {
+      const returnUrl = new URL('/deposit', window.location.origin);
+      returnUrl.searchParams.set('source', 'chapa');
+      const gameId = searchParams.get('game') || game?.id;
+      if (gameId) returnUrl.searchParams.set('game', gameId);
+
       const result = await appClient.payments.initializeChapa({
         user_id: currentUser.id,
         game_id: game?.id || '',
@@ -50,12 +89,16 @@ export default function Deposit() {
         phone,
         email: email || currentUser.email,
         purpose: 'wallet',
-        return_url: `${window.location.origin}/deposit`,
+        return_url: returnUrl.toString(),
         callback_url: `${window.location.origin}/api/payments/chapa/webhook`,
       });
       setDeposit(result.deposit);
-      if (result.checkout_url) window.open(result.checkout_url, '_blank');
-      setMessage('Payment window opened. Come back and verify after paying.');
+      if (result.checkout_url) {
+        const webApp = getTelegramWebApp();
+        if (webApp?.openLink) webApp.openLink(result.checkout_url);
+        else window.location.assign(result.checkout_url);
+      }
+      setMessage('Complete payment. Your wallet updates here after Chapa returns.');
     } catch (error) {
       setMessage(error.message || 'Could not start payment');
     }
@@ -128,7 +171,7 @@ export default function Deposit() {
         <section className="rounded-[1.75rem] bg-primary text-white p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-black text-white/65 tracking-widest">WALLET BALANCE</p>
+              <p className="text-xs font-black text-white/60 tracking-widest">WALLET BALANCE</p>
               <p className="text-4xl font-black mt-1">{fmt(walletBalance)}</p>
             </div>
             <div className="w-14 h-14 rounded-full bg-white/12 flex items-center justify-center">

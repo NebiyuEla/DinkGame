@@ -101,19 +101,17 @@ export function GameProvider({ children }) {
         });
       }
 
-      await appClient.entities.Broadcast.create({
-        game_id: currentGame.id,
-        target: shouldBan ? 'user' : 'live',
-        target_user_id: currentUser.id,
-        message: shouldBan
-          ? `Fair-play ban: ${reason}`
-          : `Fair-play warning: ${reason}`,
-        sent_by: 'system',
-        status: 'sent',
-        sent_at: new Date().toISOString(),
-      }).catch(() => {});
-
       if (shouldBan) {
+        await appClient.entities.Broadcast.create({
+          game_id: currentGame.id,
+          target: 'user',
+          target_user_id: currentUser.id,
+          message: `Game ban: ${reason}`,
+          sent_by: 'system',
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+        }).catch(() => {});
+
         const existingBan = await appClient.entities.GameBan.filter({
           game_id: currentGame.id,
           user_id: currentUser.id,
@@ -140,22 +138,42 @@ export function GameProvider({ children }) {
   const loadNextGame = useCallback(async () => {
     try {
       const games = await appClient.entities.Game.filter({ status: 'scheduled' }, 'scheduled_at', 1);
-      if (games.length > 0) setNextGame(games[0]);
-      else {
-        const lobby = await appClient.entities.Game.filter({ status: 'lobby' }, '-created_date', 1);
-        if (lobby.length > 0) setNextGame(lobby[0]);
+      if (games.length > 0) {
+        setNextGame(games[0]);
+        return games[0];
       }
+
+      const lobby = await appClient.entities.Game.filter({ status: 'lobby' }, '-created_date', 1);
+      if (lobby.length > 0) {
+        setNextGame(lobby[0]);
+        return lobby[0];
+      }
+
+      setNextGame(null);
+      return null;
     } catch (e) { console.error(e); }
+    return null;
   }, []);
 
   const loadActiveGame = useCallback(async () => {
     try {
       const live = await appClient.entities.Game.filter({ status: 'live' }, '-created_date', 1);
-      if (live.length > 0) { setCurrentGame(live[0]); setGameStatus('live'); return; }
+      if (live.length > 0) {
+        setCurrentGame(live[0]);
+        setGameStatus('live');
+        return live[0];
+      }
       const lobby = await appClient.entities.Game.filter({ status: 'lobby' }, '-created_date', 1);
-      if (lobby.length > 0) { setCurrentGame(lobby[0]); setGameStatus('lobby'); return; }
+      if (lobby.length > 0) {
+        setCurrentGame(lobby[0]);
+        setGameStatus('lobby');
+        return lobby[0];
+      }
+      setCurrentGame(null);
       setGameStatus('idle');
+      return null;
     } catch (e) { console.error(e); }
+    return null;
   }, []);
 
   // Anti-cheat: one warning, then game-specific ban for focus or visibility abuse.

@@ -21,13 +21,14 @@ export default function WelcomeSplash({ user, onDone }) {
   return (
     <div className="fixed inset-0 z-[100] dink-orange-field flex items-center justify-center px-6 overflow-hidden">
       <div className="w-full max-w-sm text-center animate-splash">
-        <DinkLogo size="lg" className="mx-auto rounded-full shadow-xl" />
-        <BrandMascot className="w-64 h-64 object-contain mx-auto mt-5 animate-float" />
-        <h1 className="text-5xl font-black text-white drop-shadow-sm mt-3">Dink Game</h1>
+        <div className="mx-auto w-28 h-28 rounded-full bg-white border-[5px] border-primary shadow-xl flex items-center justify-center">
+          <DinkLogo size="lg" className="rounded-full shadow-none" />
+        </div>
+        <BrandMascot className="w-72 h-72 object-contain mx-auto mt-5 animate-float" small />
         <button
           onClick={onDone}
           disabled={saving}
-          className="mt-8 w-full rounded-full bg-white text-primary font-black py-4 active:scale-95 transition-transform disabled:opacity-60 shadow-[0_14px_30px_rgba(0,20,81,0.24)]"
+          className="mt-6 w-full rounded-full bg-white text-primary font-black py-4 active:scale-95 transition-transform disabled:opacity-60 shadow-[0_14px_30px_rgba(0,20,81,0.24)]"
         >
           {saving ? 'Loading...' : 'Start'}
         </button>

@@ -96,10 +96,12 @@ export default function AdminLiveController() {
           current_question_index: 0,
           explanation_question_index: null,
           explanation_revealed_at: null,
+          question_started_at: null,
         });
       }
 
       if (action === 'start_game') {
+        const startedAt = new Date().toISOString();
         const money = calculateMoney(game);
         const lobbyPlayers = players.filter(player => ['lobby', 'playing'].includes(player.status || 'lobby'));
         for (const player of lobbyPlayers) {
@@ -110,6 +112,7 @@ export default function AdminLiveController() {
           current_question_index: 0,
           explanation_question_index: null,
           explanation_revealed_at: null,
+          question_started_at: startedAt,
           total_players: lobbyPlayers.filter(isContestant).length,
           prize_amount: Number(game.prize_amount || 0) || money.autoPrize,
         });
@@ -147,12 +150,13 @@ export default function AdminLiveController() {
             current_question_index: nextIndex,
             explanation_question_index: null,
             explanation_revealed_at: null,
+            question_started_at: new Date().toISOString(),
           });
         }
       }
 
       if (action === 'pause') await appClient.entities.Game.update(game.id, { status: 'paused' });
-      if (action === 'resume') await appClient.entities.Game.update(game.id, { status: 'live' });
+      if (action === 'resume') await appClient.entities.Game.update(game.id, { status: 'live', question_started_at: game.question_started_at || new Date().toISOString() });
       if (action === 'end_game') {
         if (!confirm('End this game now?')) {
           setActionLoading('');

@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Medal, Sparkles, Trophy, Wallet } from 'lucide-react';
-import BottomNav from '@/components/BottomNav';
 import Confetti from '@/components/Confetti';
 import { LeaderboardSkeleton } from '@/components/LoadingSkeleton';
 import { useGame } from '@/lib/gameContext';
 import { appClient } from '@/api/appClient';
+
+const CONGRATS_TEXT = '\u12a5\u1295\u12b3\u1295 \u12f0\u1235 \u12a0\u1208\u12ce\u1275';
 
 function WinnerAvatar({ user }) {
   const initial = user?.full_name?.[0] || user?.username?.[0] || 'P';
@@ -90,10 +91,10 @@ export default function Winners() {
             <div className="absolute right-4 bottom-4 w-3 h-3 rounded-full bg-gold" />
             <Sparkles size={22} className="mx-auto text-gold mb-2" />
             <p className="text-sm font-black text-foreground">{currentUser?.full_name || 'Player'}</p>
-            <p className="font-amharic text-lg font-black text-foreground mt-1">እንኳን ደስ አለዎት</p>
-            <div className="mx-auto my-5 w-40 h-40 bg-primary flex items-center justify-center shadow-xl"
-              style={{ clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 56%, 79% 92%, 50% 70%, 21% 92%, 32% 56%, 2% 35%, 39% 35%)' }}>
-              <span className="font-game text-2xl font-black text-white">{fmt(myWin.wallet_credit || myWin.prize_share)}</span>
+            <p className="font-amharic text-lg font-black text-foreground mt-1">{CONGRATS_TEXT}</p>
+            <div className="mx-auto my-5 max-w-[14rem] rounded-[1.5rem] bg-primary p-5 text-white shadow-xl">
+              <p className="text-[10px] font-black tracking-widest text-white/60">WALLET CREDIT</p>
+              <p className="font-game text-4xl font-black mt-1">{fmt(myWin.wallet_credit || myWin.prize_share)}</p>
             </div>
             <p className="text-xs text-muted-foreground">The amount has been added to your wallet. Telebirr withdrawal starts from 100 ETB.</p>
           </div>
@@ -118,7 +119,7 @@ export default function Winners() {
           <div className="bg-card rounded-2xl border border-border p-8 text-center">
             <Trophy size={42} className="text-muted-foreground/25 mx-auto mb-3" />
             <p className="font-bold text-foreground">No winners yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Winners appear here after an admin ends the game.</p>
+            <p className="text-sm text-muted-foreground mt-1">Winners appear after the game ends.</p>
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -144,7 +145,6 @@ export default function Winners() {
         )}
       </section>
 
-      <BottomNav />
     </div>
   );
 }
